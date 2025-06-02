@@ -1,0 +1,452 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 263 70% 50%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 263 70% 50%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 222.2 84% 4.9%;
+    --sidebar-primary: 263 70% 50%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 222.2 84% 4.9%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 263 70% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground min-h-screen;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent;
+  }
+
+  .chat-bubble {
+    @apply animate-fade-in;
+  }
+
+  .typing-indicator {
+    @apply animate-typing;
+  }
+
+  .chat-bubble:hover .copy-button {
+  opacity: 1;
+}
+
+.copy-button {
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.chat-container {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Ensure floating button doesn't cause overflow */
+.floating-memory-toggle {
+  transition: right 0.3s ease-in-out;
+  will-change: right;
+}
+
+.memory-sidebar-desktop {
+  flex-shrink: 0;
+  transition: width 0.3s ease-in-out;
+}
+
+
+/* Prevent memory sidebar from affecting main layout */
+.memory-sidebar-container {
+  flex-shrink: 0;
+  transition: width 0.3s ease-in-out;
+  will-change: width;
+}
+
+/* Smooth sidebar transitions */
+.sidebar-transition {
+  transition: transform 0.3s ease-in-out, width 0.3s ease-in-out;
+  will-change: transform, width;
+}
+
+/* Prevent flash of unstyled content */
+.layout-container {
+  opacity: 0;
+  animation: fadeIn 0.2s ease-in-out forwards;
+}
+
+/* Add to your index.css */
+.sidebar-toggle-floating {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 50;
+  transition: all 0.3s ease-in-out;
+  will-change: transform, left;
+}
+
+/* Adjust position when sidebar is open/closed */
+.sidebar-open .sidebar-toggle-floating {
+  left: calc(var(--sidebar-width) - 2rem);
+}
+
+.sidebar-closed .sidebar-toggle-floating {
+  left: 1rem;
+}
+
+/* Hover effect */
+.sidebar-toggle-floating:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 25px -8px rgba(0, 0, 0, 0.15);
+}
+
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-card border border-border shadow-sm;
+  }
+  
+  .ai-glow {
+    @apply shadow-lg shadow-purple-500/10;
+  }
+
+  /* FormattedMessage styles */
+  .formatted-message-content .message-container {
+    @apply mb-0;
+  }
+
+  .formatted-message-content .user-message,
+  .formatted-message-content .assistant-message {
+    @apply bg-transparent border-0 p-0 m-0 max-w-none;
+  }
+
+  .formatted-message-content .inline-code {
+    @apply bg-muted border border-border rounded px-1 py-0.5 text-xs font-mono;
+  }
+
+  .formatted-message-content a {
+    @apply text-primary no-underline hover:underline;
+  }
+
+  .formatted-message-content strong {
+    @apply font-semibold;
+  }
+
+  .formatted-message-content em {
+    @apply italic;
+  }
+
+  .formatted-message-content h1,
+  .formatted-message-content h2,
+  .formatted-message-content h3,
+  .formatted-message-content h4,
+  .formatted-message-content h5,
+  .formatted-message-content h6 {
+    @apply font-semibold text-foreground;
+  }
+
+  .formatted-message-content h1 {
+    @apply text-xl mt-4 mb-2;
+  }
+
+  .formatted-message-content h2 {
+    @apply text-lg mt-3 mb-2;
+  }
+
+  .formatted-message-content h3 {
+    @apply text-base mt-2 mb-1;
+  }
+
+  .formatted-message-content blockquote {
+    @apply border-l-4 border-primary/30 bg-muted/30 pl-4 py-2 my-2 italic;
+  }
+
+  .formatted-message-content ul {
+    @apply ml-4 list-disc space-y-1;
+  }
+
+  .formatted-message-content ol {
+    @apply ml-4 list-decimal space-y-1;
+  }
+
+  .formatted-message-content li {
+    @apply text-sm;
+  }
+
+  .formatted-message-content p {
+    @apply my-1 text-sm leading-relaxed;
+  }
+
+  .formatted-message-content pre {
+    @apply bg-muted/50 border border-border rounded-b-lg overflow-x-auto text-sm font-mono;
+  }
+
+  .formatted-message-content code {
+    @apply font-mono text-sm;
+  }
+
+  /* Code syntax highlighting */
+  .language-javascript,
+  .language-typescript,
+  .language-python,
+  .language-java,
+  .language-cpp,
+  .language-csharp,
+  .language-php,
+  .language-ruby,
+  .language-go,
+  .language-rust,
+  .language-sql,
+  .language-html,
+  .language-css,
+  .language-json,
+  .language-xml,
+  .language-yaml,
+  .language-markdown,
+  .language-bash,
+  .language-powershell,
+  .language-dockerfile,
+  .language-text {
+    @apply font-mono text-sm leading-relaxed;
+  }
+
+  /* Enhanced Chat Interface Styles */
+  .chat-container {
+    @apply flex flex-col h-full;
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height for mobile */
+  }
+
+  .dynamic-textarea {
+    @apply transition-all duration-200 ease-out resize-none;
+    field-sizing: content;
+  }
+
+  /* Memory Sidebar Animations */
+  .memory-collapse {
+    @apply transition-all duration-300 ease-in-out;
+  }
+
+  /* Line Clamp Utilities */
+  .line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Enhanced Glass Effect */
+  .glass-card {
+    @apply backdrop-blur-sm bg-card/80 border border-border/50 shadow-sm;
+  }
+
+  /* Responsive Text */
+  .responsive-text {
+    @apply text-sm md:text-base;
+  }
+
+  /* Hover Effects */
+  .hover-lift {
+    @apply transition-transform duration-200 hover:scale-[1.02];
+  }
+
+  /* Focus Ring */
+  .focus-ring {
+    @apply focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-2;
+  }
+
+  /* Mobile Input Container */
+  .mobile-input-container {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+  }
+
+  /* Floating Memory Toggle Button */
+  .floating-memory-toggle {
+    @apply fixed top-1/2 -translate-y-1/2 z-50 shadow-lg border-2 bg-background/95 backdrop-blur-sm;
+    @apply hover:bg-background hover:shadow-xl transition-all duration-300;
+    @apply focus:ring-2 focus:ring-primary/20 focus:ring-offset-2;
+  }
+
+  .floating-memory-toggle:hover {
+    transform: translateY(-50%) scale(1.05);
+  }
+}
+
+@layer utilities {
+  /* Custom Scrollbar Styles */
+  /* For Webkit browsers (Chrome, Safari, Edge) */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted));
+    border-radius: 10px;
+    border: 2px solid hsl(var(--background));
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+
+  /* For Firefox */
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted)) hsl(var(--background));
+  }
+
+  /* Hide scrollbar for specific elements if needed, but allow content to scroll */
+  .scrollbar-hidden {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none;  /* IE and Edge */
+  }
+
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+
+  /* Mobile Safe Areas */
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-left {
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .safe-right {
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Dynamic Height */
+  .dvh-full {
+    height: 100dvh;
+  }
+
+  .min-dvh-full {
+    min-height: 100dvh;
+  }
+}
+
+/* Custom Animations */
+@keyframes slide-in-from-bottom {
+  from {
+    transform: translateY(1rem);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Enhanced Chat Bubble Animation */
+.chat-bubble {
+  @apply animate-in slide-in-from-bottom-2 duration-300;
+  animation: slide-in-from-bottom 0.3s ease-out;
+}
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+  .chat-container {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  /* Ensure proper mobile viewport handling */
+  .mobile-chat-input {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* High DPI Display Optimizations */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .gradient-text {
+    @apply bg-gradient-to-r from-purple-600 via-purple-500 to-blue-600 bg-clip-text;
+  }
+}
