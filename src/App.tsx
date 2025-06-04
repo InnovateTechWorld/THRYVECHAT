@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
+import { ThemeProvider } from "./contexts/ThemeContext"; // Added
 import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -19,14 +20,16 @@ import Connected from "./pages/Connected";
 import Billing from "./pages/Billing";
 import Settings from "./pages/Settings";
 import ApiAnalytics from "./pages/ApiAnalytics";
+import OverallAnalytics from "./pages/OverallAnalytics";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
+    <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme"> {/* Added */}
+      <TooltipProvider>
+        <Toaster />
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
@@ -68,6 +71,11 @@ const App = () => (
                 <ApiAnalytics />
               </ProtectedRoute>
             } />
+            <Route path="/overall-analytics" element={
+              <ProtectedRoute>
+                <OverallAnalytics />
+              </ProtectedRoute>
+            } />
             <Route path="/usage" element={
               <ProtectedRoute>
                 <Usage />
@@ -92,7 +100,8 @@ const App = () => (
           </Routes>
         </AuthProvider>
       </BrowserRouter>
-    </TooltipProvider>
+      </TooltipProvider>
+    </ThemeProvider> {/* Added */}
   </QueryClientProvider>
 );
 

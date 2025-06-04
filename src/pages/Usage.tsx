@@ -1,24 +1,100 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from '@/components/Layout';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton'; // Added Skeleton import
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BarChart3, Eye, Copy, Trash2, Loader2, TrendingUp, Activity, CheckCircle } from 'lucide-react';
-import { useDashboard, useUsageLogs } from '@/hooks/useDashboard';
-import { useExportedApis } from '@/hooks/useExportedApis';
+import { BarChart3, Eye, Copy, Trash2, Loader2, Activity, Briefcase, Users, Clock } from 'lucide-react';
+import { useExportedApis } from '@/hooks/useExportedApis'; // Keep for regenerate/delete
 import { useToast } from '@/components/ui/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { API_URL } from '@/lib/api';
+import { format, parseISO, formatDistanceToNow } from 'date-fns';
+
+// Types for /dashboard/usage endpoint
+interface DashboardOverview {
+  total_requests: number;
+  total_tokens: number;
+  total_api_keys: number;
+}
+
+interface UsageByApiItem {
+  apiId: string;
+  apiName: string;
+  exportType: string;
+  totalRequests: number;
+  totalTokens: number;
+  lastUsed?: string; // ISO string or null
+}
+
+interface RecentActivityLogItem { // Simplified for this page, full type in OverallAnalytics
+  id: string;
+  created_at: string;
+  request_type: string;
+  model_used?: string;
+  total_tokens?: number;
+  status_code?: number;
+}
+interface DashboardUsageData {
+  overview: DashboardOverview;
+  usageByApi: UsageByApiItem[];
+  recentActivity: RecentActivityLogItem[]; // Last 20
+}
+
 
 const Usage = () => {
-  const { stats, isLoading: statsLoading } = useDashboard();
-  const { logs, isLoading: logsLoading } = useUsageLogs();
-  const { apis, regenerateApiKey, deleteApi } = useExportedApis();
+  const [dashboardData, setDashboardData] = useState<DashboardUsageData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Retain useExportedApis for key management functions (regenerate, delete)
+  // and potentially for detailed API info if needed elsewhere or if dashboard/usage doesn't have all display fields.
+  const { regenerateApiKey, deleteApi, apis: exportedApisList, isLoading: exportedApisLoading } = useExportedApis();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { session } = useAuth();
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (!session?.access_token) {
+        setIsLoading(false);
+        setError("User not authenticated.");
+        return;
+      }
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await fetch(`${API_URL}/dashboard/usage`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch dashboard usage data');
+        }
+        
+        const data = await response.json();
+        console.log('Dashboard usage data received:', data); // Debug log
+        setDashboardData(data as DashboardUsageData);
+      } catch (err: any) {
+        console.error("Error fetching dashboard usage data:", err);
+        setError(err.message || 'An unexpected error occurred.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [session]);
+
 
   const handleViewAnalytics = (apiId: string) => {
     navigate(`/api-analytics/${apiId}`);
@@ -26,7 +102,7 @@ const Usage = () => {
 
   const handleCopyApiKey = async (apiId: string, apiName: string) => {
     try {
-      const newKey = await regenerateApiKey(apiId);
+      const newKey = await regenerateApiKey(apiId); // This function is from useExportedApis
       if (newKey) {
         navigator.clipboard.writeText(newKey);
         toast({
@@ -44,14 +120,26 @@ const Usage = () => {
   };
 
   const handleDeleteApi = async (apiId: string, apiName: string) => {
-    if (confirm(`Are you sure you want to delete "${apiName}"? This will stop all API access.`)) {
+    if (window.confirm(`Are you sure you want to delete "${apiName}"? This will stop all API access.`)) {
       try {
-        const success = await deleteApi(apiId);
+        const success = await deleteApi(apiId); // This function is from useExportedApis
         if (success) {
           toast({
             title: "API Deleted",
             description: `${apiName} has been deleted and access revoked.`,
           });
+          // Refresh data after delete
+          const response = await fetch(`${API_URL}/dashboard/usage`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${session?.access_token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setDashboardData(data as DashboardUsageData);
+          }
         }
       } catch (error) {
         toast({
@@ -62,129 +150,157 @@ const Usage = () => {
       }
     }
   };
+  
+  const loadingSkeletons = (
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        {[...Array(3)].map((_, i) => <Skeleton key={`sum-skel-${i}`} className="h-36" />)}
+      </div>
+      <Card className="border border-border">
+        <CardHeader><Skeleton className="h-8 w-1/3" /></CardHeader>
+        <CardContent><Skeleton className="h-40 w-full" /></CardContent>
+      </Card>
+      <Card className="border border-border mt-6">
+        <CardHeader><Skeleton className="h-8 w-1/4" /></CardHeader>
+        <CardContent><Skeleton className="h-60 w-full" /></CardContent>
+      </Card>
+    </>
+  );
 
-  // Calculate display values with fallbacks
-  const displayStats = {
-    totalRequests: stats?.total_requests || 0,
-    activeApis: stats?.active_apis || apis.filter(api => api.is_active).length,
-    successRate: stats?.success_rate || 98.5,
-    requestsGrowth: stats?.monthly_growth?.requests || 0,
-    apisGrowth: stats?.monthly_growth?.apis || 0,
-    successRateGrowth: stats?.monthly_growth?.success_rate || 0
-  };
+  if (isLoading || exportedApisLoading) {
+    return (
+      <Layout>
+        <div className="flex-1 flex flex-col bg-background text-foreground">
+          <div className="flex items-center justify-between p-6 border-b border-border bg-card">
+            <div className="flex items-center gap-4">
+              <SidebarTrigger />
+              <div className="flex items-center gap-2">
+                <Briefcase className="w-5 h-5 text-primary" />
+                <h1 className="text-xl font-semibold">API Key Management</h1>
+              </div>
+            </div>
+          </div>
+          <ScrollArea className="flex-1 p-6">{loadingSkeletons}</ScrollArea>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error) {
+    return (
+      <Layout>
+         <div className="flex-1 flex flex-col bg-background text-foreground">
+          <div className="flex items-center justify-between p-6 border-b border-border bg-card"> /* ... header ... */ </div>
+          <div className="p-6">
+            <Card className="bg-destructive/10 border-destructive text-destructive-foreground">
+                <CardHeader><CardTitle>Error Loading Data</CardTitle></CardHeader>
+                <CardContent><p>{error}</p></CardContent>
+            </Card>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+  
+  const overview = dashboardData?.overview;
+  const usageByApiList = dashboardData?.usageByApi || [];
+  const recentActivityList = dashboardData?.recentActivity || [];
 
   return (
     <Layout>
-      <div className="flex-1 flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-border bg-white">
+      <div className="flex-1 flex flex-col bg-background text-foreground">
+        <div className="flex items-center justify-between p-6 border-b border-border bg-card">
           <div className="flex items-center gap-4">
             <SidebarTrigger />
             <div className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-primary" />
-              <h1 className="text-xl font-semibold">API Usage</h1>
+              <Briefcase className="w-5 h-5 text-primary" />
+              <h1 className="text-xl font-semibold">API Key Management & Overview</h1>
             </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/overall-analytics')}>
+              <BarChart3 className="w-4 h-4 mr-2" />
+              View Overall Analytics
+            </Button>
+            <Button onClick={() => navigate('/exports')}>Create New API Key</Button>
           </div>
         </div>
         
         <ScrollArea className="flex-1 p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <Card className="border border-border">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <Activity className="w-4 h-4" />
-                  Total Requests
+          {overview ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <Card className="border border-border">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Activity className="w-4 h-4" />
+                    Total Requests (All Keys)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{(overview.total_requests || 0).toLocaleString()}</div>
+                </CardContent>
+              </Card>
+              <Card className="border border-border">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Users className="w-4 h-4" /> {/* Changed Icon */}
+                    Total Tokens (All Keys)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{(overview.total_tokens || 0).toLocaleString()}</div>
+                </CardContent>
+              </Card>
+              <Card className="border border-border">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4" />
+                    Number of API Keys
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{(overview.total_api_keys || 0).toLocaleString()}</div>
+                </CardContent>
+              </Card>
+            </div>
+           ) : <Skeleton className="h-36 w-full mb-6" />}
+
+          {/* Analytics CTA Card */}
+          {overview && (
+            <Card className="border border-primary/20 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-primary" />
+                  Detailed Analytics Available
                 </CardTitle>
+                <CardDescription>
+                  Get deeper insights into your API usage patterns, model performance, and trends.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                {statsLoading ? (
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-lg">Loading...</span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="text-2xl font-bold">{displayStats.totalRequests.toLocaleString()}</div>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <TrendingUp className="w-3 h-3" />
-                      {displayStats.requestsGrowth > 0 ? '+' : ''}{displayStats.requestsGrowth}% from last month
-                    </p>
-                  </>
-                )}
+                <Button onClick={() => navigate('/overall-analytics')} className="w-full">
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  View Comprehensive Analytics
+                </Button>
               </CardContent>
             </Card>
-            
-            <Card className="border border-border">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4" />
-                  Active APIs
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {statsLoading ? (
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-lg">Loading...</span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="text-2xl font-bold">{displayStats.activeApis}</div>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <TrendingUp className="w-3 h-3" />
-                      {displayStats.apisGrowth > 0 ? '+' : ''}{displayStats.apisGrowth} created this month
-                    </p>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-            
-            <Card className="border border-border">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4" />
-                  Success Rate
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {statsLoading ? (
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-lg">Loading...</span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="text-2xl font-bold">{displayStats.successRate.toFixed(1)}%</div>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <TrendingUp className="w-3 h-3" />
-                      {displayStats.successRateGrowth > 0 ? '+' : ''}{displayStats.successRateGrowth.toFixed(1)}% from last month
-                    </p>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+          )}
 
           <Card className="border border-border">
             <CardHeader>
-              <CardTitle>API Endpoints</CardTitle>
+              <CardTitle>Your API Keys</CardTitle>
+              <CardDescription>Manage your created API keys and see their individual usage.</CardDescription>
             </CardHeader>
             <CardContent>
-              {logsLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-6 h-6 animate-spin" />
-                    <span>Loading API usage data...</span>
-                  </div>
-                </div>
-              ) : apis.length === 0 ? (
+              {usageByApiList.length === 0 && !isLoading ? (
                 <div className="text-center py-8">
                   <BarChart3 className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold text-muted-foreground mb-2">No APIs created yet</h3>
+                  <h3 className="text-lg font-semibold text-muted-foreground mb-2">No API Keys created yet</h3>
                   <p className="text-sm text-muted-foreground mb-6">
-                    Create your first exported API to start tracking usage
+                    Create your first API key to start tracking usage.
                   </p>
                   <Button onClick={() => navigate('/exports')}>
-                    Create API
+                    Create API Key
                   </Button>
                 </div>
               ) : (
@@ -193,42 +309,36 @@ const Usage = () => {
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Type</TableHead>
-                      <TableHead>Base Model</TableHead>
-                      <TableHead>Rate Limit</TableHead>
-                      <TableHead>Created</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Total Requests</TableHead>
+                      <TableHead className="text-right">Total Tokens</TableHead>
+                      <TableHead>Last Used</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {apis.map((api) => (
-                      <TableRow key={api.id}>
-                        <TableCell className="font-medium">{api.name}</TableCell>
-                        <TableCell className="capitalize">{api.export_type}</TableCell>
+                    {usageByApiList.map((apiKey) => (
+                      <TableRow key={apiKey.apiId}>
+                        <TableCell className="font-medium">{apiKey.apiName}</TableCell>
+                        <TableCell className="capitalize">{apiKey.exportType}</TableCell>
+                        <TableCell className="text-right">{(apiKey.totalRequests || 0).toLocaleString()}</TableCell>
+                        <TableCell className="text-right">{(apiKey.totalTokens || 0).toLocaleString()}</TableCell>
                         <TableCell>
-                          <Badge variant="outline">{api.base_model}</Badge>
-                        </TableCell>
-                        <TableCell>{api.rate_limit}/min</TableCell>
-                        <TableCell>{new Date(api.created_at).toLocaleDateString()}</TableCell>
-                        <TableCell>
-                          <Badge variant={api.is_active ? 'default' : 'secondary'}>
-                            {api.is_active ? 'Active' : 'Inactive'}
-                          </Badge>
+                          {apiKey.lastUsed ? formatDistanceToNow(parseISO(apiKey.lastUsed), { addSuffix: true }) : 'Never'}
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => handleViewAnalytics(api.id)}
-                              title="View Analytics"
+                              onClick={() => handleViewAnalytics(apiKey.apiId)}
+                              title="View Detailed Analytics"
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => handleCopyApiKey(api.id, api.name)}
+                              onClick={() => handleCopyApiKey(apiKey.apiId, apiKey.apiName)}
                               title="Regenerate & Copy API Key"
                             >
                               <Copy className="w-4 h-4" />
@@ -236,8 +346,8 @@ const Usage = () => {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => handleDeleteApi(api.id, api.name)}
-                              title="Delete API"
+                              onClick={() => handleDeleteApi(apiKey.apiId, apiKey.apiName)}
+                              title="Delete API Key"
                               className="hover:bg-destructive/10 hover:text-destructive"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -251,6 +361,43 @@ const Usage = () => {
               )}
             </CardContent>
           </Card>
+
+          {recentActivityList.length > 0 && (
+            <Card className="border border-border mt-6">
+              <CardHeader>
+                <CardTitle>Quick Recent Activity (Last 20)</CardTitle>
+                <CardDescription>A brief log of recent API calls across your keys.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead><Clock className="inline w-4 h-4 mr-1" />Timestamp</TableHead>
+                      <TableHead>Endpoint</TableHead>
+                      <TableHead>Model</TableHead>
+                      <TableHead className="text-right">Tokens</TableHead>
+                      <TableHead className="text-right">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recentActivityList.map((log) => (
+                      <TableRow key={log.id}>
+                        <TableCell>{format(parseISO(log.created_at), "MMM d, HH:mm")}</TableCell>
+                        <TableCell><Badge variant="outline" className="truncate max-w-xs">{log.request_type}</Badge></TableCell>
+                        <TableCell>{log.model_used || 'N/A'}</TableCell>
+                        <TableCell className="text-right">{log.total_tokens?.toLocaleString() || 'N/A'}</TableCell>
+                        <TableCell className="text-right">
+                           <Badge variant={log.status_code === 200 || !log.status_code ? 'default' : 'destructive'}>
+                              {log.status_code || 'N/A'}
+                            </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </ScrollArea>
       </div>
     </Layout>

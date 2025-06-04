@@ -61,7 +61,7 @@ const Chat = () => {
 
         <div className="flex-1 flex flex-col min-w-0 w-full"> {/* Re-added w-full */}
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-border/50 bg-card/30 backdrop-blur-sm">
+          <div className="flex items-center justify-between p-4 border-b border-border bg-card text-foreground"> {/* Ensured bg-card and text-foreground */}
             <div className="flex items-center gap-4">
               <div>
                 <h1 className="text-lg font-semibold gradient-text">Echo Verse AI Flow</h1>

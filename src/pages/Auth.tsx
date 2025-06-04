@@ -342,8 +342,8 @@ const Auth = () => {
   };
 
   return (
-    <div className="container mx-auto flex items-center justify-center min-h-screen p-4">
-      <Card className="w-full max-w-md">
+    <div className="container mx-auto flex items-center justify-center min-h-screen p-4 bg-background text-foreground"> {/* Added bg-background, text-foreground */}
+      <Card className="w-full max-w-md bg-card"> {/* Added bg-card */}
         <Tabs defaultValue="signin" className="w-full">
           <CardHeader>
             <CardTitle className="text-2xl font-bold text-center">Welcome</CardTitle>

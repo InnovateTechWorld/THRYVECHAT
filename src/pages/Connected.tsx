@@ -71,8 +71,8 @@ const Connected = () => {
 
   return (
     <Layout>
-      <div className="flex-1 flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-border bg-white">
+      <div className="flex-1 flex flex-col bg-background text-foreground"> {/* Added bg-background, text-foreground */}
+        <div className="flex items-center justify-between p-6 border-b border-border bg-card"> {/* Changed bg-white to bg-card */}
           <div className="flex items-center gap-4">
             <SidebarTrigger />
             <div className="flex items-center gap-2">

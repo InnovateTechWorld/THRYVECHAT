@@ -8,13 +8,17 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Settings as SettingsIcon, User, Bell, Shield, Palette, Loader2, Save } from 'lucide-react';
+import { Settings as SettingsIcon, User, Bell, Shield, Palette, Loader2, Save, Sun, Moon, Laptop } from 'lucide-react'; // Added Sun, Moon, Laptop
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext'; // Added
 import { useSystemPrompt } from '@/hooks/useDashboard';
 import { useToast } from '@/components/ui/use-toast';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group" // Added
+import { Label } from "@/components/ui/label" // Added
 
 const Settings = () => {
   const { user, signOut } = useAuth();
+  const { theme, setTheme, effectiveTheme } = useTheme(); // Added
   const { prompt, updatePrompt, isLoading: promptLoading } = useSystemPrompt();
   const { toast } = useToast();
 
@@ -117,8 +121,8 @@ const Settings = () => {
 
   return (
     <Layout>
-      <div className="flex-1 flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-border bg-white">
+      <div className="flex-1 flex flex-col bg-background text-foreground"> {/* Added bg-background, text-foreground */}
+        <div className="flex items-center justify-between p-6 border-b border-border bg-card"> {/* Changed bg-white to bg-card */}
           <div className="flex items-center gap-4">
             <SidebarTrigger />
             <div className="flex items-center gap-2">
@@ -172,6 +176,57 @@ const Settings = () => {
                     </>
                   )}
                 </Button>
+              </CardContent>
+            </Card>
+
+            {/* Theme Settings */}
+            <Card className="border border-border">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Palette className="w-4 h-4" />
+                  Appearance
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RadioGroup
+                  value={theme}
+                  onValueChange={(value) => setTheme(value as 'light' | 'dark' | 'system')}
+                  className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+                >
+                  <Label
+                    htmlFor="light-theme"
+                    className={`flex flex-col items-center justify-center rounded-md border-2 p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer ${
+                      theme === 'light' ? 'border-primary bg-primary/10' : 'border-muted'
+                    }`}
+                  >
+                    <RadioGroupItem value="light" id="light-theme" className="sr-only" />
+                    <Sun className="w-8 h-8 mb-2" />
+                    Light
+                  </Label>
+                  <Label
+                    htmlFor="dark-theme"
+                    className={`flex flex-col items-center justify-center rounded-md border-2 p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer ${
+                      theme === 'dark' ? 'border-primary bg-primary/10' : 'border-muted'
+                    }`}
+                  >
+                    <RadioGroupItem value="dark" id="dark-theme" className="sr-only" />
+                    <Moon className="w-8 h-8 mb-2" />
+                    Dark
+                  </Label>
+                  <Label
+                    htmlFor="system-theme"
+                    className={`flex flex-col items-center justify-center rounded-md border-2 p-4 hover:bg-accent hover:text-accent-foreground cursor-pointer ${
+                      theme === 'system' ? 'border-primary bg-primary/10' : 'border-muted'
+                    }`}
+                  >
+                    <RadioGroupItem value="system" id="system-theme" className="sr-only" />
+                    <Laptop className="w-8 h-8 mb-2" />
+                    System
+                  </Label>
+                </RadioGroup>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Current effective theme: <span className="font-semibold">{effectiveTheme}</span>
+                </p>
               </CardContent>
             </Card>
 

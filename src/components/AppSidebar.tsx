@@ -105,22 +105,22 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar className="border-r border-border bg-white">
-      <SidebarHeader className="border-b border-border p-4 bg-white">
+    <Sidebar className="border-r border-border bg-background text-foreground"> {/* Changed bg-white to bg-background, added text-foreground */}
+      <SidebarHeader className="border-b border-border p-4 bg-background"> {/* Changed bg-white to bg-background */}
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
             <Zap className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h2 className="font-semibold text-sm text-gray-900">Echo Verse</h2>
-            <p className="text-xs text-gray-600">AI Flow</p>
+            <h2 className="font-semibold text-sm text-foreground">Echo Verse</h2> {/* Changed text-gray-900 to text-foreground */}
+            <p className="text-xs text-muted-foreground">AI Flow</p> {/* Changed text-gray-600 to text-muted-foreground */}
           </div>
         </div>
       </SidebarHeader>
       
-      <SidebarContent className="px-2 bg-white">
+      <SidebarContent className="px-2 bg-background"> {/* Changed bg-white to bg-background */}
         <SidebarGroup>
-          <SidebarGroupLabel className="text-xs uppercase tracking-wider text-gray-600 px-2 py-2">
+          <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground px-2 py-2"> {/* Changed text-gray-600 to text-muted-foreground */}
             Workspace
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -130,19 +130,19 @@ export function AppSidebar() {
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
-                      <Link 
+                      <Link
                         to={item.url}
                         className={cn(
                           "flex items-center gap-3 px-2 py-2 rounded-lg transition-all duration-200",
-                          isActive 
-                            ? "bg-primary/10 text-primary border border-primary/20" 
-                            : "hover:bg-gray-100 text-gray-600 hover:text-gray-900"
+                          isActive
+                            ? "bg-primary/10 text-primary border border-primary/20"
+                            : "hover:bg-accent text-muted-foreground hover:text-accent-foreground" // Changed hover:bg-gray-100, text-gray-600, hover:text-gray-900
                         )}
                       >
                         <item.icon className="w-4 h-4" />
                         <div className="flex-1">
                           <span className="text-sm font-medium">{item.title}</span>
-                          <p className="text-xs text-gray-500">{item.description}</p>
+                          <p className="text-xs text-muted-foreground">{item.description}</p> {/* Changed text-gray-500 to text-muted-foreground */}
                         </div>
                       </Link>
                     </SidebarMenuButton>
@@ -154,7 +154,7 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel className="text-xs uppercase tracking-wider text-gray-600 px-2 py-2">
+          <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground px-2 py-2"> {/* Changed text-gray-600 to text-muted-foreground */}
             Management
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -164,19 +164,19 @@ export function AppSidebar() {
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
-                      <Link 
+                      <Link
                         to={item.url}
                         className={cn(
                           "flex items-center gap-3 px-2 py-2 rounded-lg transition-all duration-200",
-                          isActive 
-                            ? "bg-primary/10 text-primary border border-primary/20" 
-                            : "hover:bg-gray-100 text-gray-600 hover:text-gray-900"
+                          isActive
+                            ? "bg-primary/10 text-primary border border-primary/20"
+                            : "hover:bg-accent text-muted-foreground hover:text-accent-foreground" // Changed hover:bg-gray-100, text-gray-600, hover:text-gray-900
                         )}
                       >
                         <item.icon className="w-4 h-4" />
                         <div className="flex-1">
                           <span className="text-sm font-medium">{item.title}</span>
-                          <p className="text-xs text-gray-500">{item.description}</p>
+                          <p className="text-xs text-muted-foreground">{item.description}</p> {/* Changed text-gray-500 to text-muted-foreground */}
                         </div>
                       </Link>
                     </SidebarMenuButton>
@@ -198,13 +198,13 @@ export function AppSidebar() {
                       "flex items-center gap-3 px-2 py-2 rounded-lg transition-all duration-200",
                       location.pathname === '/settings'
                         ? "bg-primary/10 text-primary border border-primary/20"
-                        : "hover:bg-gray-100 text-gray-600 hover:text-gray-900"
+                        : "hover:bg-accent text-muted-foreground hover:text-accent-foreground" // Changed hover:bg-gray-100, text-gray-600, hover:text-gray-900
                     )}
                   >
                     <Settings className="w-4 h-4" />
                     <div className="flex-1">
                       <span className="text-sm font-medium">Settings</span>
-                      <p className="text-xs text-gray-500">Preferences</p>
+                      <p className="text-xs text-muted-foreground">Preferences</p> {/* Changed text-gray-500 to text-muted-foreground */}
                     </div>
                   </Link>
                 </SidebarMenuButton>
@@ -214,12 +214,12 @@ export function AppSidebar() {
                   <SidebarMenuButton asChild>
                     <button
                       onClick={handleSignOut}
-                      className="w-full flex items-center gap-3 px-2 py-2 rounded-lg transition-all duration-200 hover:bg-red-50 text-gray-600 hover:text-red-600"
+                      className="w-full flex items-center gap-3 px-2 py-2 rounded-lg transition-all duration-200 hover:bg-destructive/10 text-muted-foreground hover:text-destructive" // Changed hover:bg-red-50, text-gray-600, hover:text-red-600
                     >
                       <LogOut className="w-4 h-4" />
                       <div className="flex-1 text-left">
                         <span className="text-sm font-medium">Sign Out</span>
-                        <p className="text-xs text-gray-500">{user.email}</p>
+                        <p className="text-xs text-muted-foreground">{user.email}</p> {/* Changed text-gray-500 to text-muted-foreground */}
                       </div>
                     </button>
                   </SidebarMenuButton>

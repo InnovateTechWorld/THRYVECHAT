@@ -312,8 +312,8 @@ print(result["choices"][0]["message"]["content"])`;
 
   return (
     <Layout>
-      <div className="flex-1 flex flex-col bg-white">
-        <div className="flex items-center justify-between p-6 border-b border-border">
+      <div className="flex-1 flex flex-col bg-background text-foreground"> {/* Changed bg-white to bg-background, added text-foreground */}
+        <div className="flex items-center justify-between p-6 border-b border-border bg-card"> {/* Changed to bg-card for header consistency */}
           <div className="flex items-center gap-4">
             <SidebarTrigger />
             <div className="flex items-center gap-2">
