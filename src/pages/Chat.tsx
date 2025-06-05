@@ -34,7 +34,7 @@ const Chat = () => {
       setTimeout(() => {
         setIsLayoutReady(true);
         if (window.innerWidth >= 768) {
-          setIsMemorySidebarOpen(true);
+          setIsMemorySidebarOpen(false);
         }
       }, 100);
     }, 150);

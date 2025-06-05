@@ -77,7 +77,12 @@ const ApiAnalytics = () => {
       setError(null);
       
       try {
-        const response = await fetch(`${API_URL}/api/usage/analytics/${id}`, {
+        // Use the special internal-chat endpoint if id is "internal-chat"
+        const endpoint = id === 'internal-chat'
+          ? `${API_URL}/api/usage/analytics/internal-chat`
+          : `${API_URL}/api/usage/analytics/${id}`;
+          
+        const response = await fetch(endpoint, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
@@ -160,7 +165,9 @@ const ApiAnalytics = () => {
               </Button>
               <div className="flex items-center gap-2">
                 <Activity className="w-5 h-5 text-primary" />
-                <h1 className="text-xl font-semibold">API Analytics</h1>
+                <h1 className="text-xl font-semibold">
+                  {id === 'internal-chat' ? 'Internal Chat Analytics' : 'API Analytics'}
+                </h1>
               </div>
             </div>
           </div>
@@ -215,7 +222,12 @@ const ApiAnalytics = () => {
                   <Badge variant="default">Active</Badge>
                 </div>
               </div>
-              <CardDescription>Detailed analytics for this API key</CardDescription>
+              <CardDescription>
+                {id === 'internal-chat'
+                  ? 'Detailed analytics for internal chat usage within the platform'
+                  : 'Detailed analytics for this API key'
+                }
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -285,7 +297,12 @@ const ApiAnalytics = () => {
           <Card>
             <CardHeader>
               <CardTitle>Recent Activity</CardTitle>
-              <CardDescription>Latest API calls for this key (up to 100 entries)</CardDescription>
+              <CardDescription>
+                {id === 'internal-chat'
+                  ? 'Latest internal chat messages and interactions (up to 100 entries)'
+                  : 'Latest API calls for this key (up to 100 entries)'
+                }
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {recentActivity.length > 0 ? (
@@ -332,7 +349,10 @@ const ApiAnalytics = () => {
                   <Activity className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                   <h3 className="text-lg font-semibold text-muted-foreground mb-2">No Activity Yet</h3>
                   <p className="text-sm text-muted-foreground">
-                    This API key hasn't been used yet.
+                    {id === 'internal-chat'
+                      ? 'No internal chat messages have been recorded yet.'
+                      : 'This API key hasn\'t been used yet.'
+                    }
                   </p>
                 </div>
               )}

@@ -40,6 +40,27 @@ interface RecentActivityLogItem { // Simplified for this page, full type in Over
   total_tokens?: number;
   status_code?: number;
 }
+
+// Types for internal chat analytics
+interface InternalChatSummary {
+  total_requests: number;
+  total_tokens: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  avg_response_time_ms?: number;
+}
+
+interface InternalChatAnalytics {
+  apiInfo: {
+    id: string;
+    name: string;
+    type: string;
+  };
+  summary: InternalChatSummary;
+  hourlyUsage: Record<string, { requests: number; tokens: number }>;
+  recentActivity: RecentActivityLogItem[];
+}
+
 interface DashboardUsageData {
   overview: DashboardOverview;
   usageByApi: UsageByApiItem[];
@@ -49,6 +70,7 @@ interface DashboardUsageData {
 
 const Usage = () => {
   const [dashboardData, setDashboardData] = useState<DashboardUsageData | null>(null);
+  const [internalChatData, setInternalChatData] = useState<InternalChatAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -60,7 +82,7 @@ const Usage = () => {
   const { session } = useAuth();
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    const fetchAllData = async () => {
       if (!session?.access_token) {
         setIsLoading(false);
         setError("User not authenticated.");
@@ -68,36 +90,61 @@ const Usage = () => {
       }
       setIsLoading(true);
       setError(null);
+      
       try {
-        const response = await fetch(`${API_URL}/dashboard/usage`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json'
-          }
-        });
+        // Fetch both dashboard data and internal chat analytics in parallel
+        const [dashboardResponse, internalChatResponse] = await Promise.all([
+          fetch(`${API_URL}/dashboard/usage`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              'Content-Type': 'application/json'
+            }
+          }),
+          fetch(`${API_URL}/api/usage/analytics/internal-chat`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              'Content-Type': 'application/json'
+            }
+          })
+        ]);
 
-        if (!response.ok) {
+        if (!dashboardResponse.ok) {
           throw new Error('Failed to fetch dashboard usage data');
         }
         
-        const data = await response.json();
-        console.log('Dashboard usage data received:', data); // Debug log
-        setDashboardData(data as DashboardUsageData);
+        const dashboardData = await dashboardResponse.json();
+        console.log('Dashboard usage data received:', dashboardData); // Debug log
+        setDashboardData(dashboardData as DashboardUsageData);
+
+        // Internal chat response might fail if no data exists, so handle gracefully
+        if (internalChatResponse.ok) {
+          const internalChatData = await internalChatResponse.json();
+          console.log('Internal chat data received:', internalChatData); // Debug log
+          setInternalChatData(internalChatData as InternalChatAnalytics);
+        } else {
+          console.log('No internal chat data available or failed to fetch');
+          setInternalChatData(null);
+        }
       } catch (err: any) {
-        console.error("Error fetching dashboard usage data:", err);
+        console.error("Error fetching data:", err);
         setError(err.message || 'An unexpected error occurred.');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchDashboardData();
+    fetchAllData();
   }, [session]);
 
 
   const handleViewAnalytics = (apiId: string) => {
     navigate(`/api-analytics/${apiId}`);
+  };
+
+  const handleViewInternalChatAnalytics = () => {
+    navigate(`/api-analytics/internal-chat`);
   };
 
   const handleCopyApiKey = async (apiId: string, apiName: string) => {
@@ -264,6 +311,57 @@ const Usage = () => {
               </Card>
             </div>
            ) : <Skeleton className="h-36 w-full mb-6" />}
+
+          {/* Internal Chat Usage Section */}
+          {internalChatData && (
+            <Card className="border border-border mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-primary" />
+                  Internal Chat Usage
+                </CardTitle>
+                <CardDescription>
+                  Analytics for your internal chat conversations within the platform.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                  <div className="text-center p-3 bg-muted rounded">
+                    <Activity className="w-5 h-5 mx-auto mb-2 text-primary" />
+                    <p className="text-sm text-muted-foreground">Chat Requests</p>
+                    <p className="text-xl font-bold">{(internalChatData.summary.total_requests || 0).toLocaleString()}</p>
+                  </div>
+                  <div className="text-center p-3 bg-muted rounded">
+                    <BarChart3 className="w-5 h-5 mx-auto mb-2 text-primary" />
+                    <p className="text-sm text-muted-foreground">Total Tokens</p>
+                    <p className="text-xl font-bold">{(internalChatData.summary.total_tokens || 0).toLocaleString()}</p>
+                  </div>
+                  <div className="text-center p-3 bg-muted rounded">
+                    <Users className="w-5 h-5 mx-auto mb-2 text-primary" />
+                    <p className="text-sm text-muted-foreground">Prompt Tokens</p>
+                    <p className="text-xl font-bold">{(internalChatData.summary.prompt_tokens || 0).toLocaleString()}</p>
+                  </div>
+                  <div className="text-center p-3 bg-muted rounded">
+                    <Clock className="w-5 h-5 mx-auto mb-2 text-primary" />
+                    <p className="text-sm text-muted-foreground">Completion Tokens</p>
+                    <p className="text-xl font-bold">{(internalChatData.summary.completion_tokens || 0).toLocaleString()}</p>
+                  </div>
+                </div>
+                {internalChatData.summary.avg_response_time_ms && (
+                  <div className="text-center mb-4">
+                    <p className="text-sm text-muted-foreground">Average Response Time</p>
+                    <p className="text-lg font-semibold">{internalChatData.summary.avg_response_time_ms.toFixed(2)} ms</p>
+                  </div>
+                )}
+                <div className="flex justify-center">
+                  <Button variant="outline" onClick={handleViewInternalChatAnalytics}>
+                    <Eye className="w-4 h-4 mr-2" />
+                    View Detailed Internal Chat Analytics
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Analytics CTA Card */}
           {overview && (
