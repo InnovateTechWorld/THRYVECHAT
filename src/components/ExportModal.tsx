@@ -326,6 +326,7 @@ export const ExportModal = ({ isOpen, onClose }: ExportModalProps) => {
                 <li>• Use model "base" for your default model, or specify any allowed model</li>
                 <li>• The API follows OpenAI-compatible format for easy integration</li>
                 <li>• All requests are rate-limited and tracked for usage analytics</li>
+                <li>• For third-party integrations: if it doesn't work, remove "/chat/completions" from the URL as some tools add it automatically</li>
               </ul>
             </div>
             

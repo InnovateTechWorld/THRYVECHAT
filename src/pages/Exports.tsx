@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Layout } from '@/components/Layout';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -9,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Download, Plus, Settings, Copy, Eye, Loader2, Trash2, RefreshCw, ExternalLink, CheckCircle, BarChart3, Brain, NotebookPen } from 'lucide-react';
+import { Download, Plus, Settings, Copy, Eye, Loader2, Trash2, RefreshCw, ExternalLink, CheckCircle, BarChart3, Brain, NotebookPen, Code } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { useExportedApis, useQuickExport } from '@/hooks/useExportedApis';
@@ -38,6 +37,7 @@ const Exports = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [createdApi, setCreatedApi] = useState<ApiCreationResult | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showExamplesModal, setShowExamplesModal] = useState<any>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -56,8 +56,8 @@ const Exports = () => {
     base_model: string;
     allowed_models: string[];
     rate_limit: number;
-    include_memories: boolean;  // NEW
-    include_notes: boolean;     // NEW
+    include_memories: boolean;
+    include_notes: boolean;
   }>({
     name: '',
     description: '',
@@ -66,8 +66,8 @@ const Exports = () => {
     base_model: '',
     allowed_models: [],
     rate_limit: 100,
-    include_memories: false,    // NEW
-    include_notes: false        // NEW
+    include_memories: false,
+    include_notes: false
   });
 
   const handleCreateApi = async () => {
@@ -95,27 +95,24 @@ const Exports = () => {
       const result = await createApi({
         ...newApi,
         allowed_models: newApi.allowed_models.length > 0 ? newApi.allowed_models : [newApi.base_model],
-        name: newApi.name.trim(), // Ensure name is passed
-        description: newApi.description.trim() || undefined // Pass description
+        name: newApi.name.trim(),
+        description: newApi.description.trim() || undefined
       });
 
       if (result) {
-        // Set the created API data for the success modal
         const apiResult: ApiCreationResult = {
           ...result,
-          api_url: `${API_URL}/api/exported/${result.export_type}/${result.api_key}/chat/completions`
+          api_url: `${API_URL}/api/exported/${result.export_type}/v1/chat/completions`
         };
         
         setCreatedApi(apiResult);
         setIsCreateModalOpen(false);
         setShowSuccessModal(true);
 
-        // Copy API key to clipboard
         if (result.api_key) {
           navigator.clipboard.writeText(result.api_key);
         }
 
-        // Reset form
         setNewApi({
           name: '',
           description: '',
@@ -142,17 +139,16 @@ const Exports = () => {
   const handleQuickContextExport = async () => {
     setIsCreating(true);
     try {
-      const selectedModels = models.slice(0, 3).map(m => m.id); // First 3 models
+      const selectedModels = models.slice(0, 3).map(m => m.id);
       const result = await createContextAPI(
         selectedModels,
-        false, // includeMemories
-        false, // includeNotes
-        'Quick Context API', // ADD NAME
-        'Quickly generated API with default settings' // ADD DESCRIPTION
+        false,
+        false,
+        'Quick Context API',
+        'Quickly generated API with default settings'
       );
 
       if (result) {
-        // Set up quick export result for success modal
         const quickApiResult: ApiCreationResult = {
           id: result.id,
           name: 'Quick Context API',
@@ -199,10 +195,12 @@ const Exports = () => {
     });
   };
 
+  // Examples for created API (in success modal)
   const getUsageExample = () => {
     if (!createdApi) return '';
     
     return `curl -X POST "${createdApi.api_url}" \\
+  -H "Authorization: Bearer ${createdApi.api_key}" \\
   -H "Content-Type: application/json" \\
   -d '{
     "model": "${createdApi.base_model}",
@@ -224,6 +222,7 @@ const Exports = () => {
     return `const response = await fetch('${createdApi.api_url}', {
   method: 'POST',
   headers: {
+    'Authorization': 'Bearer ${createdApi.api_key}',
     'Content-Type': 'application/json'
   },
   body: JSON.stringify({
@@ -234,7 +233,9 @@ const Exports = () => {
         content: 'Hello! How can you help me?'
       }
     ],
-    stream: false
+    stream: false,
+    temperature: 0.7,
+    max_tokens: 1000
   })
 });
 
@@ -249,6 +250,7 @@ console.log(data.choices[0].message.content);`;
 
 url = "${createdApi.api_url}"
 headers = {
+    "Authorization": "Bearer ${createdApi.api_key}",
     "Content-Type": "application/json"
 }
 
@@ -260,12 +262,91 @@ data = {
             "content": "Hello! How can you help me?"
         }
     ],
-    "stream": False
+    "stream": False,
+    "temperature": 0.7,
+    "max_tokens": 1000
 }
 
 response = requests.post(url, headers=headers, json=data)
 result = response.json()
 print(result["choices"][0]["message"]["content"])`;
+  };
+
+  // Examples for existing APIs (in examples modal)
+  const getApiUsageExample = (api: any, type: 'curl' | 'javascript' | 'python') => {
+    const apiUrl = `${API_URL}/api/exported/${api.export_type}/v1/chat/completions`;
+    
+    switch (type) {
+      case 'curl':
+        return `curl -X POST "${apiUrl}" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "${api.base_model}",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hello! How can you help me?"
+      }
+    ],
+    "stream": false,
+    "temperature": 0.7,
+    "max_tokens": 1000
+  }'`;
+
+      case 'javascript':
+        return `const response = await fetch('${apiUrl}', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    model: '${api.base_model}',
+    messages: [
+      {
+        role: 'user',
+        content: 'Hello! How can you help me?'
+      }
+    ],
+    stream: false,
+    temperature: 0.7,
+    max_tokens: 1000
+  })
+});
+
+const data = await response.json();
+console.log(data.choices[0].message.content);`;
+
+      case 'python':
+        return `import requests
+
+url = "${apiUrl}"
+headers = {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Content-Type": "application/json"
+}
+
+data = {
+    "model": "${api.base_model}",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Hello! How can you help me?"
+        }
+    ],
+    "stream": False,
+    "temperature": 0.7,
+    "max_tokens": 1000
+}
+
+response = requests.post(url, headers=headers, json=data)
+result = response.json()
+print(result["choices"][0]["message"]["content"])`;
+
+      default:
+        return '';
+    }
   };
 
   const handleViewAnalytics = (exportId: string) => {
@@ -312,8 +393,8 @@ print(result["choices"][0]["message"]["content"])`;
 
   return (
     <Layout>
-      <div className="flex-1 flex flex-col bg-background text-foreground"> {/* Changed bg-white to bg-background, added text-foreground */}
-        <div className="flex items-center justify-between p-6 border-b border-border bg-card"> {/* Changed to bg-card for header consistency */}
+      <div className="flex-1 flex flex-col bg-background text-foreground">
+        <div className="flex items-center justify-between p-6 border-b border-border bg-card">
           <div className="flex items-center gap-4">
             <SidebarTrigger />
             <div className="flex items-center gap-2">
@@ -419,7 +500,6 @@ print(result["choices"][0]["message"]["content"])`;
                     </select>
                   </div>
 
-                  {/* NEW: Context Settings */}
                   <ContextSettings
                     includeMemories={newApi.include_memories}
                     includeNotes={newApi.include_notes}
@@ -503,7 +583,6 @@ print(result["choices"][0]["message"]["content"])`;
                         <Badge variant="outline" className="text-xs capitalize">
                           {api.export_type}
                         </Badge>
-                        {/* NEW: Context Status Indicators */}
                         {api.include_memories && (
                           <Badge variant="secondary" className="text-xs flex items-center gap-1">
                             <Brain className="w-3 h-3" />
@@ -523,6 +602,14 @@ print(result["choices"][0]["message"]["content"])`;
                           title="View Analytics"
                         >
                           <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setShowExamplesModal(api)}
+                          title="View Usage Examples"
+                        >
+                          <Code className="w-4 h-4" />
                         </Button>
                         <Button
                           size="sm"
@@ -549,7 +636,6 @@ print(result["choices"][0]["message"]["content"])`;
                       {api.description || 'No description provided'}
                     </p>
                     
-                    {/* NEW: Context Toggle Component */}
                     <ContextToggle
                       apiId={api.id}
                       currentMemories={api.include_memories || false}
@@ -557,7 +643,6 @@ print(result["choices"][0]["message"]["content"])`;
                       memoryCount={memories?.length || 0}
                       notesCount={notes?.length || 0}
                       onUpdate={(updatedAPI) => {
-                        // Handle context update - this will be handled by the hook automatically
                         console.log('Context updated for API:', api.id, updatedAPI);
                       }}
                     />
@@ -576,6 +661,148 @@ print(result["choices"][0]["message"]["content"])`;
             )}
           </div>
         </ScrollArea>
+
+        {/* Usage Examples Modal */}
+        <Dialog open={!!showExamplesModal} onOpenChange={() => setShowExamplesModal(null)}>
+          <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Code className="w-5 h-5" />
+                Usage Examples - {showExamplesModal?.name}
+              </DialogTitle>
+            </DialogHeader>
+            
+            {showExamplesModal && (
+              <div className="space-y-6">
+                <div className="p-4 bg-muted/50 rounded-lg">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium">API Endpoint:</span>
+                      <div className="flex gap-2 mt-1">
+                        <Input
+                          value={`${API_URL}/api/exported/${showExamplesModal.export_type}/v1/chat/completions`}
+                          readOnly
+                          className="font-mono text-xs"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => copyToClipboard(`${API_URL}/api/exported/${showExamplesModal.export_type}/v1/chat/completions`, 'API endpoint')}
+                        >
+                          <Copy className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <span className="font-medium">Base Model:</span> {showExamplesModal.base_model}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium flex items-center gap-2">
+                      <Badge variant="outline">cURL</Badge>
+                      Command Line
+                    </h3>
+                    <Button
+                      size="sm"
+                      onClick={() => copyToClipboard(getApiUsageExample(showExamplesModal, 'curl'), 'cURL example')}
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                    >
+                      <Copy className="w-3 h-3 mr-1" />
+                      Copy cURL
+                    </Button>
+                  </div>
+                  <Textarea
+                    value={getApiUsageExample(showExamplesModal, 'curl')}
+                    readOnly
+                    className="font-mono text-xs bg-background"
+                    rows={12}
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium flex items-center gap-2">
+                      <Badge variant="outline">JavaScript</Badge>
+                      Node.js / Browser
+                    </h3>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => copyToClipboard(getApiUsageExample(showExamplesModal, 'javascript'), 'JavaScript example')}
+                    >
+                      <Copy className="w-3 h-3 mr-1" />
+                      Copy JS
+                    </Button>
+                  </div>
+                  <Textarea
+                    value={getApiUsageExample(showExamplesModal, 'javascript')}
+                    readOnly
+                    className="font-mono text-xs bg-background"
+                    rows={10}
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium flex items-center gap-2">
+                      <Badge variant="outline">Python</Badge>
+                      Python Requests
+                    </h3>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => copyToClipboard(getApiUsageExample(showExamplesModal, 'python'), 'Python example')}
+                    >
+                      <Copy className="w-3 h-3 mr-1" />
+                      Copy Python
+                    </Button>
+                  </div>
+                  <Textarea
+                    value={getApiUsageExample(showExamplesModal, 'python')}
+                    readOnly
+                    className="font-mono text-xs bg-background"
+                    rows={10}
+                  />
+                </div>
+
+                <div className="p-4 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 rounded-lg">
+                  <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">Important Notes:</p>
+                  <ul className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
+                    <li>• Replace <code className="bg-yellow-100 dark:bg-yellow-900/50 px-1 rounded">YOUR_API_KEY</code> with your actual API key</li>
+                    <li>• Your API key provides access to your {showExamplesModal.export_type === 'context' ? 'personal AI context' : 'conversation history'}</li>
+                    <li>• This API follows OpenAI-compatible format for easy integration</li>
+                    <li>• All requests are rate-limited to {showExamplesModal.rate_limit} requests per minute</li>
+                    <li>• Models list available at: <code className="bg-yellow-100 dark:bg-yellow-900/50 px-1 rounded">{API_URL}/api/exported/v1/models</code></li>
+                    <li>• For third-party integrations: if it doesn't work, remove "/chat/completions" from the URL as some tools add it automatically</li>
+                    {showExamplesModal.export_type === 'context' && (
+                      <li>• Context APIs include your memories, notes, and system prompt automatically</li>
+                    )}
+                  </ul>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => navigate(`/api-analytics/${showExamplesModal.id}`)}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    View Analytics
+                  </Button>
+                  <Button
+                    onClick={() => setShowExamplesModal(null)}
+                    className="flex-1"
+                  >
+                    Done
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Success Modal */}
         <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
@@ -736,6 +963,8 @@ print(result["choices"][0]["message"]["content"])`;
                     <li>• This API follows OpenAI-compatible format for easy integration</li>
                     <li>• All requests are rate-limited to {createdApi.rate_limit} requests per minute</li>
                     <li>• Usage is tracked and can be monitored in the dashboard</li>
+                    <li>• Models list available at: <code className="bg-yellow-100 dark:bg-yellow-900/50 px-1 rounded">{API_URL}/api/exported/v1/models</code></li>
+                    <li>• For third-party integrations: if it doesn't work, remove "/chat/completions" from the URL as some tools add it automatically</li>
                     {createdApi.export_type === 'context' && (
                       <li>• Context APIs include your memories, notes, and system prompt automatically</li>
                     )}

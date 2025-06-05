@@ -208,9 +208,10 @@ export const ExportAsApiButton = ({ sessionId, messages, type = 'session' }: Exp
   };
 
   const getUsageExample = () => {
-    if (!exportResult) return '';
-    
-    return `curl -X POST "${exportResult.apiUrl}" \\
+  if (!exportResult) return '';
+  
+  return `curl -X POST "${exportResult.apiUrl}" \\
+  -H "Authorization: Bearer ${exportResult.apiKey}" \\
   -H "Content-Type: application/json" \\
   -d '{
     "model": "${selectedModels[0] || 'base'}",
@@ -220,9 +221,11 @@ export const ExportAsApiButton = ({ sessionId, messages, type = 'session' }: Exp
         "content": "Hello! How can you help me?"
       }
     ],
-    "stream": false
+    "stream": false,
+    "temperature": 0.7,
+    "max_tokens": 1000
   }'`;
-  };
+};
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {

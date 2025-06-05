@@ -317,7 +317,7 @@ export const useQuickExport = () => {
       return {
         id: data.id,
         apiKey: data.apiKey,
-        apiUrl: `${API_URL}/api/exported/context/${data.apiKey}/chat/completions`,
+        apiUrl: `${API_URL}/api/exported/context/v1/chat/completions`,
         type: data.type
       };
     } catch (err) {
@@ -369,7 +369,7 @@ export const useQuickExport = () => {
       return {
         id: data.id,
         apiKey: data.apiKey,
-        apiUrl: `${API_URL}/api/exported/session/${data.apiKey}/chat/completions`,
+        apiUrl: `${API_URL}/api/exported/session/v1/chat/completions`,
         type: data.type,
         sessionId: data.sessionId
       };
