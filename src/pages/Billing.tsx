@@ -209,8 +209,8 @@ const Billing = () => {
   return (
   <Layout>
     <div className="flex-1 flex flex-col bg-background text-foreground">
-      <div className="flex items-center justify-between p-6 border-b border-border bg-card">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between p-4 md:p-6 border-b border-border bg-card">
+        <div className="flex items-center gap-3 md:gap-4">
           <SidebarTrigger />
           <div className="flex items-center gap-2">
             <CreditCard className="w-5 h-5 text-primary" />
@@ -221,7 +221,7 @@ const Billing = () => {
       
       <div className="flex-1 p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="subscription">Subscription</TabsTrigger>
             <TabsTrigger value="credits">Credits</TabsTrigger>
@@ -233,7 +233,7 @@ const Billing = () => {
             {billingData ? (
               <>
                 {/* Current Status Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
                   {/* Subscription Status */}
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -307,10 +307,10 @@ const Billing = () => {
                     <CardTitle>Quick Actions</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Button 
-                        variant="outline" 
-                        className="h-auto flex-col p-4"
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+                      <Button
+                        variant="outline"
+                        className="h-auto flex-col p-4 touch-manipulation"
                         onClick={() => setActiveTab('subscription')}
                       >
                         <Crown className="w-6 h-6 mb-2" />
@@ -348,7 +348,7 @@ const Billing = () => {
                       <CardTitle>Recent Activity</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-3">
+                      <div className="space-y-2 md:space-y-3">
                         {(billingData?.recentTransactions || [])
                           .filter(transaction => transaction && typeof transaction === 'object')
                           .slice(0, 5)
@@ -381,7 +381,7 @@ const Billing = () => {
                       <CardTitle className="text-red-600">Danger Zone</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                         <div>
                           <h3 className="font-medium">Cancel Subscription</h3>
                           <p className="text-sm text-muted-foreground">

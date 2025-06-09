@@ -198,9 +198,9 @@ export const ChatInterface = ({ sessionId = 'default' }: ChatInterfaceProps) => 
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full dvh-full">
       {/* Header */}
-      <div className="border-b border-border/50 p-3 md:p-4 bg-card/50 backdrop-blur-sm flex-shrink-0">
+      <div className="border-b border-border/50 p-2 md:p-4 bg-card/50 backdrop-blur-sm flex-shrink-0 safe-top">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="flex items-center gap-2 min-w-0">
@@ -232,7 +232,9 @@ export const ChatInterface = ({ sessionId = 'default' }: ChatInterfaceProps) => 
           </div>
           
           <div className="flex items-center gap-2 md:gap-3">
-            <ExportAsApiButton sessionId={sessionId} messages={messages} type="session" />
+            <div className="hidden md:block">
+              <ExportAsApiButton sessionId={sessionId} messages={messages} type="session" />
+            </div>
             
             {/* Model Selector with Search */}
             <Popover open={isModelSelectOpen} onOpenChange={setIsModelSelectOpen}>
@@ -303,7 +305,7 @@ export const ChatInterface = ({ sessionId = 'default' }: ChatInterfaceProps) => 
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-3 md:p-4">
+      <ScrollArea className="flex-1 p-2 md:p-4 overflow-y-auto scrollbar-hidden">
         <div className="space-y-4 max-w-4xl mx-auto">
           {messages.map((message) => {
             // Convert to formatted message
@@ -416,7 +418,7 @@ export const ChatInterface = ({ sessionId = 'default' }: ChatInterfaceProps) => 
       </ScrollArea>
 
       {/* Dynamic Input */}
-      <div className="border-t border-border/50 p-3 md:p-4 bg-card/50 backdrop-blur-sm flex-shrink-0">
+      <div className="border-t border-border/50 p-2 md:p-4 bg-card/50 backdrop-blur-sm flex-shrink-0 safe-bottom mobile-input-container">
         <div className="max-w-4xl mx-auto">
           <div className="flex gap-2 md:gap-3 items-end">
             <div className="flex-1 relative">
@@ -426,7 +428,7 @@ export const ChatInterface = ({ sessionId = 'default' }: ChatInterfaceProps) => 
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Message AI..."
-                className="min-h-[44px] max-h-[200px] pr-12 py-3 bg-background border-border/50 focus:border-primary/50 resize-none rounded-xl transition-all duration-200 text-sm md:text-base overflow-hidden" /* Added overflow-hidden */
+                className="min-h-[44px] max-h-[200px] pr-12 py-2 md:py-3 bg-background border-border/50 focus:border-primary/50 resize-none rounded-xl transition-all duration-200 text-sm md:text-base overflow-hidden touch-manipulation" /* Added touch-manipulation */
                 disabled={isLoading}
                 rows={1}
                 style={{
@@ -460,7 +462,7 @@ export const ChatInterface = ({ sessionId = 'default' }: ChatInterfaceProps) => 
                 'Select a model to start chatting'
               )}
             </span>
-            <span className="hidden sm:inline">
+            <span className="hidden md:inline text-[10px] md:text-xs">
               {input.trim() ? 'Enter to send • Shift+Enter for new line' : 'Press Enter to send'}
             </span>
           </div>

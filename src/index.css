@@ -477,9 +477,71 @@
     height: 100dvh;
   }
 
-  /* Ensure proper mobile viewport handling */
-  .mobile-chat-input {
-    padding-bottom: env(safe-area-inset-bottom);
+  /* Enhanced touch targets */
+  .mobile-touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Better message spacing */
+  .chat-bubble {
+    margin-bottom: 0.75rem;
+  }
+
+  /* Improve mobile text selection */
+  .formatted-message-content {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  /* Mobile input optimizations */
+  .mobile-input-container {
+    position: sticky;
+    bottom: 0;
+    padding-bottom: max(env(safe-area-inset-bottom), 0.75rem);
+    background-color: hsl(var(--background));
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  /* Hide scrollbars but keep functionality */
+  .scrollbar-hidden {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Prevent rubber banding on iOS */
+  body {
+    overscroll-behavior-y: contain;
+  }
+
+  /* Optimize touch handling */
+  * {
+    touch-action: manipulation;
+  }
+
+  /* Adjust button sizes for touch */
+  .chat-bubble button {
+    min-height: 32px;
+    min-width: 32px;
+  }
+
+  /* Improve text readability */
+  .formatted-message-content {
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  /* Optimize model selector for mobile */
+  .model-selector-mobile {
+    max-width: 140px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 

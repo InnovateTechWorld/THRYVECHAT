@@ -57,8 +57,8 @@ const Models = () => {
     <Layout>
       <div className="flex h-screen">
         <div className="flex-1 flex flex-col">
-          <div className="flex items-center justify-between p-4 border-b border-border/50 bg-card/30 backdrop-blur-sm">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col md:flex-row md:items-center gap-4 p-3 md:p-4 border-b border-border/50 bg-card/30 backdrop-blur-sm">
+            <div className="flex items-center gap-3">
               <SidebarTrigger />
               <div>
                 <h1 className="text-lg font-semibold gradient-text">AI Models</h1>
@@ -67,7 +67,7 @@ const Models = () => {
             </div>
             
             {/* Search Bar */}
-            <div className="relative w-full max-w-md">
+            <div className="relative w-full md:max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <Input
                 placeholder="Search models..."
@@ -88,11 +88,11 @@ const Models = () => {
                 </div>
               )}
               
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3 md:gap-6">
                 {filteredModels.map((model) => {
                   const displayInfo = getModelDisplayInfo(model.id);
                   return (
-                    <Card key={model.id} className="hover:shadow-lg transition-all duration-200 hover:border-primary/20 min-h-[280px]">
+                    <Card key={model.id} className="hover:shadow-lg transition-all duration-200 hover:border-primary/20 min-h-[280px] touch-manipulation">
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between gap-2">
                           <CardTitle className="flex items-center gap-2 text-base leading-tight">
@@ -124,7 +124,7 @@ const Models = () => {
                             <DollarSign className="w-4 h-4 text-muted-foreground" />
                             <span className="text-muted-foreground">Pricing</span>
                           </div>
-                          <div className="pl-6 space-y-1 text-xs">
+                          <div className="pl-4 md:pl-6 space-y-2 text-xs">
                             <div className="flex justify-between">
                               <span>Input:</span>
                               <span className="font-mono">${model.pricing.prompt}/1K</span>
@@ -143,7 +143,7 @@ const Models = () => {
                               <Zap className="w-3 h-3 flex-shrink-0" />
                               <span className="font-medium">Model ID:</span>
                             </div>
-                            <div className="bg-muted/50 rounded p-2 text-xs font-mono break-all leading-relaxed">
+                            <div className="bg-muted/50 rounded p-2 text-[11px] md:text-xs font-mono break-all leading-relaxed">
                               {model.id}
                             </div>
                           </div>

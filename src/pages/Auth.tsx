@@ -342,13 +342,13 @@ const Auth = () => {
   };
 
   return (
-    <div className="container mx-auto flex items-center justify-center min-h-screen p-4 bg-background text-foreground"> {/* Added bg-background, text-foreground */}
-      <Card className="w-full max-w-md bg-card"> {/* Added bg-card */}
+    <div className="container mx-auto flex items-center justify-center min-h-screen px-3 py-6 md:p-4 bg-background text-foreground safe-top safe-bottom"> {/* Added safe areas and mobile padding */}
+      <Card className="w-full max-w-md bg-card shadow-lg border-border/50"> {/* Added shadow and border */}
         <Tabs defaultValue="signin" className="w-full">
           <CardHeader>
-            <CardTitle className="text-2xl font-bold text-center">Welcome</CardTitle>
+            <CardTitle className="text-xl md:text-2xl font-bold text-center">Welcome</CardTitle>
             <CardDescription className="text-center">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-2 p-1 gap-1">
                 <TabsTrigger value="signin">Sign In</TabsTrigger>
                 <TabsTrigger value="signup">Sign Up</TabsTrigger>
               </TabsList>
@@ -368,13 +368,13 @@ const Auth = () => {
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button type="submit" className="w-full h-11 touch-manipulation" disabled={isLoading}>
                   Send Reset Link
                 </Button>
                 <Button
                   type="button"
                   variant="ghost"
-                  className="w-full"
+                  className="w-full h-11 touch-manipulation"
                   onClick={() => setShowResetPassword(false)}
                 >
                   Back to Sign In
@@ -387,6 +387,7 @@ const Auth = () => {
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
                       <Input
+                        className="h-11"
                         id="email"
                         type="email"
                         value={email}
@@ -398,6 +399,7 @@ const Auth = () => {
                     <div className="space-y-2">
                       <Label htmlFor="password">Password</Label>
                       <Input
+                        className="h-11"
                         id="password"
                         type="password"
                         value={password}
@@ -414,7 +416,7 @@ const Auth = () => {
                     >
                       Forgot Password?
                     </Button>
-                    <Button type="submit" className="w-full" disabled={isLoading}>
+                    <Button type="submit" className="w-full h-11 touch-manipulation" disabled={isLoading}>
                       <Mail className="mr-2" />
                       Sign In with Email
                     </Button>
@@ -438,7 +440,7 @@ const Auth = () => {
                           onChange={(e) => setEmail(e.target.value)}
                           required
                         />
-                        <Button type="submit" className="w-full" disabled={isLoading}>
+                        <Button type="submit" className="w-full h-11 touch-manipulation" disabled={isLoading}>
                           Send Reset Code
                         </Button>
                       </form>
@@ -459,7 +461,7 @@ const Auth = () => {
                           onChange={(e) => setNewPassword(e.target.value)}
                           required
                         />
-                        <Button type="submit" className="w-full" disabled={isLoading}>
+                        <Button type="submit" className="w-full h-11 touch-manipulation" disabled={isLoading}>
                           Reset Password
                         </Button>
                       </form>
@@ -480,7 +482,7 @@ const Auth = () => {
                           required
                         />
                       </div>
-                      <Button type="submit" className="w-full" disabled={isLoading}>
+                      <Button type="submit" className="w-full h-11 touch-manipulation" disabled={isLoading}>
                         Verify Code
                       </Button>
                     </form>
@@ -489,6 +491,7 @@ const Auth = () => {
                       <div className="space-y-2">
                         <Label htmlFor="name">Full Name</Label>
                         <Input
+                          className="h-11"
                           id="name"
                           value={name}
                           onChange={(e) => setName(e.target.value)}
@@ -499,6 +502,7 @@ const Auth = () => {
                       <div className="space-y-2">
                         <Label htmlFor="signup-email">Email</Label>
                         <Input
+                          className="h-11"
                           id="signup-email"
                           type="email"
                           value={email}
@@ -510,6 +514,7 @@ const Auth = () => {
                       <div className="space-y-2">
                         <Label htmlFor="signup-password">Password</Label>
                         <Input
+                          className="h-11"
                           id="signup-password"
                           type="password"
                           value={password}
@@ -518,25 +523,25 @@ const Auth = () => {
                           required
                         />
                       </div>
-                      <Button type="submit" className="w-full" disabled={isLoading}>
+                      <Button type="submit" className="w-full h-11 touch-manipulation" disabled={isLoading}>
                         <Mail className="mr-2" />
                         Sign Up with Email
                       </Button>
                     </form>
                   )}
                 </TabsContent>
-                <div className="relative my-4">
+                <div className="relative my-6">
                   <div className="absolute inset-0 flex items-center">
                     <div className="w-full border-t"></div>
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+                    <span className="bg-background px-2 text-muted-foreground text-[11px] md:text-xs">Or continue with</span>
                   </div>
                 </div>
                 <Button
                   variant="outline"
                   onClick={handleGoogleSignIn}
-                  className="w-full"
+                  className="w-full h-11 touch-manipulation"
                   disabled={isLoading}
                 >
                   <Chrome className="mr-2" />
@@ -545,7 +550,7 @@ const Auth = () => {
               </>
             )}
           </CardContent>
-          <CardFooter className="flex justify-center text-sm text-muted-foreground">
+          <CardFooter className="flex justify-center text-xs md:text-sm text-muted-foreground px-3">
             By continuing, you agree to our Terms of Service and Privacy Policy.
           </CardFooter>
         </Tabs>
