@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Layout } from '@/components/Layout';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -8,18 +7,32 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Settings as SettingsIcon, User, Bell, Shield, Palette, Loader2, Save, Sun, Moon, Laptop } from 'lucide-react'; // Added Sun, Moon, Laptop
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Settings as SettingsIcon, User, Bell, Shield, Palette, Loader2, Save, Sun, Moon, Laptop, Bot, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTheme } from '@/contexts/ThemeContext'; // Added
+import { useTheme } from '@/contexts/ThemeContext';
 import { useSystemPrompt } from '@/hooks/useDashboard';
+import { useModels, getModelDisplayInfo } from '@/hooks/useModels';
+import { useDefaultModel } from '@/hooks/useDefaultModel';
 import { useToast } from '@/components/ui/use-toast';
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group" // Added
-import { Label } from "@/components/ui/label" // Added
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label"
+import { cn } from '@/lib/utils';
 
 const Settings = () => {
   const { user, signOut } = useAuth();
-  const { theme, setTheme, effectiveTheme } = useTheme(); // Added
+  const { theme, setTheme, effectiveTheme } = useTheme();
   const { prompt, updatePrompt, isLoading: promptLoading } = useSystemPrompt();
+  const { models, isLoading: modelsLoading } = useModels();
+  const { 
+    defaultModel, 
+    isLoading: defaultModelLoading,
+    setDefaultModel,
+    removeDefaultModel,
+    isSettingDefault,
+    isRemovingDefault
+  } = useDefaultModel();
   const { toast } = useToast();
 
   const [profile, setProfile] = useState({
@@ -101,6 +114,58 @@ const Settings = () => {
     }
   };
 
+  const handleSetDefaultModel = async (modelId: string) => {
+    try {
+      setDefaultModel(modelId, {
+        onSuccess: () => {
+          toast({
+            title: "Default model updated",
+            description: `${models.find(m => m.id === modelId)?.name || modelId} is now your default model.`,
+          });
+        },
+        onError: (error: Error) => {
+          toast({
+            title: "Error",
+            description: error.message || "Failed to set default model. Please try again.",
+            variant: "destructive"
+          });
+        }
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to set default model. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleRemoveDefaultModel = async () => {
+    try {
+      removeDefaultModel(undefined, {
+        onSuccess: () => {
+          toast({
+            title: "Default model removed",
+            description: "Default model has been removed. The system will use the fallback model.",
+          });
+        },
+        onError: (error: Error) => {
+          toast({
+            title: "Error",
+            description: error.message || "Failed to remove default model. Please try again.",
+            variant: "destructive"
+          });
+        }
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to remove default model. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleSignOut = async () => {
     if (confirm("Are you sure you want to sign out?")) {
       try {
@@ -119,10 +184,12 @@ const Settings = () => {
     }
   };
 
+  const currentDefaultModel = models.find(m => m.id === defaultModel);
+
   return (
     <Layout>
-      <div className="flex-1 flex flex-col bg-background text-foreground"> {/* Added bg-background, text-foreground */}
-        <div className="flex items-center justify-between p-6 border-b border-border bg-card"> {/* Changed bg-white to bg-card */}
+      <div className="flex-1 flex flex-col bg-background text-foreground">
+        <div className="flex items-center justify-between p-6 border-b border-border bg-card">
           <div className="flex items-center gap-4">
             <SidebarTrigger />
             <div className="flex items-center gap-2">
@@ -176,6 +243,115 @@ const Settings = () => {
                     </>
                   )}
                 </Button>
+              </CardContent>
+            </Card>
+
+            {/* Default Model Settings */}
+            <Card className="border border-border">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bot className="w-4 h-4" />
+                  Default AI Model
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium">Preferred Model</label>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    This model will be automatically selected for new conversations and when no specific model is chosen.
+                  </p>
+                  
+                  {modelsLoading || defaultModelLoading ? (
+                    <div className="flex items-center gap-2 p-3 border rounded-md">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-sm text-muted-foreground">Loading models...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <Select
+                        value={defaultModel || ""}
+                        onValueChange={handleSetDefaultModel}
+                        disabled={isSettingDefault}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select a default model">
+                            {currentDefaultModel ? (
+                              <div className="flex items-center gap-2">
+                                <div className={cn("w-2 h-2 rounded-full", getModelDisplayInfo(currentDefaultModel.id).color)} />
+                                <span>{currentDefaultModel.name}</span>
+                                {getModelDisplayInfo(currentDefaultModel.id).isFree && (
+                                  <Badge variant="secondary" className="text-xs">FREE</Badge>
+                                )}
+                              </div>
+                            ) : (
+                              "No default model set"
+                            )}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {models.map((model) => {
+                            const displayInfo = getModelDisplayInfo(model.id);
+                            return (
+                              <SelectItem key={model.id} value={model.id}>
+                                <div className="flex items-center gap-2 w-full">
+                                  <div className={cn("w-2 h-2 rounded-full", displayInfo.color)} />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-medium truncate flex items-center gap-2">
+                                      {model.name}
+                                      {displayInfo.isFree && (
+                                        <Badge variant="secondary" className="text-xs">FREE</Badge>
+                                      )}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground truncate">
+                                      {model.id}
+                                    </div>
+                                  </div>
+                                </div>
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                      
+                      {defaultModel && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleRemoveDefaultModel}
+                            disabled={isRemovingDefault}
+                          >
+                            {isRemovingDefault ? (
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3 h-3 mr-1" />
+                            )}
+                            Remove Default
+                          </Button>
+                          <span className="text-xs text-muted-foreground">
+                            Will fallback to system default (Mistral Devstral Small)
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+                
+                {currentDefaultModel && (
+                  <div className="p-3 bg-muted/50 rounded-md">
+                    <div className="text-sm font-medium mb-1">Current Default Model</div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className={cn("w-2 h-2 rounded-full", getModelDisplayInfo(currentDefaultModel.id).color)} />
+                      <span>{currentDefaultModel.name}</span>
+                      {getModelDisplayInfo(currentDefaultModel.id).isFree && (
+                        <Badge variant="secondary" className="text-xs">FREE</Badge>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      ID: {currentDefaultModel.id}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

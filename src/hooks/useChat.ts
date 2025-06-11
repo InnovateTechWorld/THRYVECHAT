@@ -1,6 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../lib/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useDefaultModel } from './useDefaultModel';
+import { getDefaultFreeModel } from './useModels';
+
+// Constants for optimized caching
+const MESSAGE_CACHE_TIME = 1000 * 60 * 60; // 1 hour for messages
+const MESSAGE_STALE_TIME = 1000 * 60 * 10; // 10 minutes
+const SESSION_CACHE_TIME = 1000 * 60 * 30; // 30 minutes for sessions
+const SESSION_STALE_TIME = 1000 * 60 * 5; // 5 minutes
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000;
 
 export interface Message {
   id: string;
@@ -9,6 +20,8 @@ export interface Message {
   model_id?: string;
   file_urls?: string[];
   created_at: string;
+  isStreaming?: boolean;
+  error?: boolean;
 }
 
 export interface ChatSession {
@@ -19,225 +32,385 @@ export interface ChatSession {
   message_count: number;
 }
 
-export const useChat = (sessionId: string) => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { session } = useAuth();
+interface SendMessageParams {
+  content: string;
+  model?: string;
+  fileUrls?: string[];
+}
 
-  const getAuthHeaders = () => ({
+interface CreateSessionParams {
+  name?: string;
+}
+
+export const useChat = (sessionId: string) => {
+  const [error, setError] = useState<string | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const { session } = useAuth();
+  const queryClient = useQueryClient();
+  const { defaultModel } = useDefaultModel();
+
+  const getAuthHeaders = useCallback(() => ({
     'Authorization': `Bearer ${session?.access_token}`,
     'Content-Type': 'application/json'
-  });
+  }), [session?.access_token]);
 
-  const getDeleteHeaders = () => ({
-  'Authorization': `Bearer ${session?.access_token}`
-});
+  // Helper to get effective default model
+  const getEffectiveDefaultModel = useCallback(() => {
+    return defaultModel || getDefaultFreeModel();
+  }, [defaultModel]);
 
-  // Load chat history
-  const loadHistory = useCallback(async () => {
-    if (!session?.access_token || !sessionId) return;
-    
-    try {
+  // Optimized chat history query with session-specific caching
+  const { data: messages = [], isLoading } = useQuery({
+    queryKey: ['chat', sessionId] as const,
+    queryFn: async (): Promise<Message[]> => {
+      if (!session?.access_token || !sessionId) return [];
+      
       const response = await fetch(`${API_URL}/chat/history/${sessionId}`, {
         headers: getAuthHeaders()
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        setMessages(data);
-      }
-    } catch (err) {
-      console.error('Error loading chat history:', err);
-    }
-  }, [sessionId, session?.access_token]);
-
-  useEffect(() => {
-    loadHistory();
-  }, [loadHistory]);
-
-  const sendMessage = async (content: string, model: string, fileUrls?: string[]) => {
-    if (!session?.access_token) {
-      setError('Not authenticated');
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`${API_URL}/chat/message`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          sessionId,
-          model,
-          content,
-          file_urls: fileUrls
-        })
-      });
-
       if (!response.ok) {
-        throw new Error('Failed to send message');
+        if (response.status === 404) {
+          // New session, no messages yet
+          return [];
+        }
+        throw new Error(`Failed to load chat history: ${response.status}`);
+      }
+      
+      return response.json();
+    },
+    gcTime: MESSAGE_CACHE_TIME,
+    staleTime: MESSAGE_STALE_TIME,
+    retry: (failureCount: number) => {
+      if (failureCount < MAX_RETRIES) {
+        setTimeout(() => {}, RETRY_DELAY * Math.pow(2, failureCount));
+        return true;
+      }
+      return false;
+    },
+    enabled: !!session?.access_token && !!sessionId,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true
+  });
+
+  // Optimized send message mutation with streaming support
+  const { mutate: sendMessage, isPending: isSending } = useMutation({
+    mutationFn: async ({ content, model, fileUrls }: SendMessageParams) => {
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
       }
 
-      // Add user message immediately
+      // Use default model if none provided
+      const effectiveModel = model || getEffectiveDefaultModel();
+      
+      setIsStreaming(true);
+      setError(null);
+
+      // Generate unique IDs for optimistic updates
+      const userMessageId = `user_${Date.now()}`;
+      const assistantMessageId = `assistant_${Date.now() + 1}`;
+
+      // Add optimistic user message immediately
       const userMessage: Message = {
-        id: Date.now().toString(),
+        id: userMessageId,
         content,
         role: 'user',
-        model_id: model,
+        model_id: effectiveModel,
         file_urls: fileUrls,
         created_at: new Date().toISOString()
       };
-      setMessages(prev => [...prev, userMessage]);
 
-      // Handle streaming response
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response body');
+      queryClient.setQueryData<Message[]>(['chat', sessionId], (old = []) => [
+        ...old,
+        userMessage
+      ]);
 
-      let assistantMessage = '';
-      const assistantMessageId = (Date.now() + 1).toString();
-
-      // Add initial assistant message
-      const initialAssistantMessage: Message = {
+      // Add optimistic assistant message with streaming state
+      const assistantMessage: Message = {
         id: assistantMessageId,
         content: '',
         role: 'assistant',
-        model_id: model,
-        created_at: new Date().toISOString()
+        model_id: effectiveModel,
+        created_at: new Date().toISOString(),
+        isStreaming: true
       };
-      setMessages(prev => [...prev, initialAssistantMessage]);
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      queryClient.setQueryData<Message[]>(['chat', sessionId], (old = []) => [
+        ...old,
+        assistantMessage
+      ]);
 
-        const chunk = new TextDecoder().decode(value);
-        const lines = chunk.split('\n');
+      try {
+        const response = await fetch(`${API_URL}/chat/message`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ 
+            sessionId, 
+            model: effectiveModel, 
+            content, 
+            file_urls: fileUrls 
+          })
+        });
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') {
-              setIsLoading(false);
-              return;
-            }
-            
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.content) {
-                assistantMessage += parsed.content;
-                setMessages(prev => 
-                  prev.map(msg => 
-                    msg.id === assistantMessageId 
-                      ? { ...msg, content: assistantMessage }
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: Failed to send message`);
+        }
+
+        // Handle streaming response
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('No response body');
+
+        let assistantContent = '';
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim();
+              if (data === '[DONE]') {
+                setIsStreaming(false);
+                queryClient.setQueryData<Message[]>(['chat', sessionId], (old = []) =>
+                  old.map(msg =>
+                    msg.id === assistantMessageId
+                      ? { ...msg, isStreaming: false }
                       : msg
                   )
                 );
+                continue;
               }
-            } catch (e) {
-              // Ignore parsing errors for non-JSON lines
+
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.content) {
+                  assistantContent += parsed.content;
+                  
+                  // Update assistant message content in real-time
+                  queryClient.setQueryData<Message[]>(['chat', sessionId], (old = []) =>
+                    old.map(msg =>
+                      msg.id === assistantMessageId
+                        ? { ...msg, content: assistantContent }
+                        : msg
+                    )
+                  );
+                }
+              } catch (parseError) {
+                console.warn('Failed to parse streaming data:', data);
+              }
             }
           }
         }
+
+        // Update sessions cache to reflect new message count
+        queryClient.invalidateQueries({ queryKey: ['sessions'] });
+        
+        return { content: assistantContent };
+      } catch (streamError) {
+        setIsStreaming(false);
+        
+        // Mark assistant message as error
+        queryClient.setQueryData<Message[]>(['chat', sessionId], (old = []) =>
+          old.map(msg =>
+            msg.id === assistantMessageId
+              ? { 
+                  ...msg, 
+                  content: 'Failed to generate response. Please try again.', 
+                  error: true,
+                  isStreaming: false 
+                }
+              : msg
+          )
+        );
+        
+        throw streamError;
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      console.error('Error sending message:', err);
-    } finally {
-      setIsLoading(false);
+    },
+    retry: (failureCount: number, error: Error) => {
+      // Don't retry authentication errors
+      if (error.message.includes('401') || error.message.includes('Not authenticated')) {
+        return false;
+      }
+      
+      if (failureCount < MAX_RETRIES) {
+        setTimeout(() => {}, RETRY_DELAY * Math.pow(2, failureCount));
+        return true;
+      }
+      return false;
+    },
+    onError: (error: Error) => {
+      setError(error.message);
+      setIsStreaming(false);
+    },
+    onSuccess: () => {
+      setError(null);
+      setIsStreaming(false);
     }
-  };
+  });
+
+  // Retry failed message
+  const retryMessage = useCallback((messageId: string) => {
+    const currentMessages = queryClient.getQueryData<Message[]>(['chat', sessionId]) || [];
+    const failedMessage = currentMessages.find(msg => msg.id === messageId);
+    
+    if (failedMessage && failedMessage.role === 'assistant' && failedMessage.error) {
+      // Find the previous user message
+      const messageIndex = currentMessages.findIndex(msg => msg.id === messageId);
+      const userMessage = currentMessages[messageIndex - 1];
+      
+      if (userMessage && userMessage.role === 'user') {
+        // Remove the failed assistant message
+        queryClient.setQueryData<Message[]>(['chat', sessionId], (old = []) =>
+          old.filter(msg => msg.id !== messageId)
+        );
+        
+        // Retry sending the message
+        sendMessage({
+          content: userMessage.content,
+          model: userMessage.model_id,
+          fileUrls: userMessage.file_urls
+        });
+      }
+    }
+  }, [sendMessage, sessionId, queryClient]);
+
+  const send = useCallback((content: string, model?: string, fileUrls?: string[]) => {
+    if (!content.trim()) return;
+    sendMessage({ content: content.trim(), model, fileUrls });
+  }, [sendMessage]);
 
   return {
     messages,
-    isLoading,
+    isLoading: isLoading || isSending,
+    isStreaming,
     error,
-    sendMessage,
-    loadHistory
+    sendMessage: send,
+    retryMessage,
+    getEffectiveDefaultModel
   };
 };
 
 export const useChatSessions = () => {
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const { session } = useAuth();
+  const queryClient = useQueryClient();
 
-  const getAuthHeaders = () => ({
+  const getAuthHeaders = useCallback(() => ({
     'Authorization': `Bearer ${session?.access_token}`,
     'Content-Type': 'application/json'
-  });
+  }), [session?.access_token]);
 
-  const getDeleteHeaders = () => ({
-  'Authorization': `Bearer ${session?.access_token}`
-});
+  // Optimized sessions query with smart caching
+  const { data: sessions = [], isLoading, refetch } = useQuery({
+    queryKey: ['sessions'] as const,
+    queryFn: async (): Promise<ChatSession[]> => {
+      if (!session?.access_token) return [];
 
-  const loadSessions = useCallback(async () => {
-    if (!session?.access_token) return;
-    
-    setIsLoading(true);
-    try {
       const response = await fetch(`${API_URL}/chat/sessions`, {
         headers: getAuthHeaders()
       });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setSessions(data);
+
+      if (!response.ok) throw new Error('Failed to load sessions');
+      return response.json();
+    },
+    gcTime: SESSION_CACHE_TIME,
+    staleTime: SESSION_STALE_TIME,
+    retry: (failureCount: number) => {
+      if (failureCount < MAX_RETRIES) {
+        setTimeout(() => {}, RETRY_DELAY * Math.pow(2, failureCount));
+        return true;
       }
-    } catch (err) {
-      console.error('Error loading sessions:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [session?.access_token]);
+      return false;
+    },
+    enabled: !!session?.access_token,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true
+  });
 
-  const updateSessionTitle = async (sessionId: string, name: string) => {
-    if (!session?.access_token) return;
+  // Create new session
+  const { mutate: createSession } = useMutation({
+    mutationFn: async ({ name }: CreateSessionParams = {}) => {
+      if (!session?.access_token) throw new Error('Not authenticated');
 
-    try {
+      const response = await fetch(`${API_URL}/chat/sessions`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          name: name || `New Chat ${new Date().toLocaleString()}`
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to create session');
+      return response.json();
+    },
+    onSuccess: (newSession) => {
+      // Add new session to cache
+      queryClient.setQueryData<ChatSession[]>(['sessions'], (old = []) => [
+        newSession,
+        ...old
+      ]);
+    },
+    retry: (failureCount: number) => failureCount < MAX_RETRIES
+  });
+
+  // Update session title
+  const { mutate: updateSessionTitle } = useMutation({
+    mutationFn: async ({ sessionId, name }: { sessionId: string; name: string }) => {
+      if (!session?.access_token) throw new Error('Not authenticated');
+
       const response = await fetch(`${API_URL}/chat/sessions/${sessionId}`, {
         method: 'PATCH',
         headers: getAuthHeaders(),
         body: JSON.stringify({ name })
       });
 
-      if (response.ok) {
-        setSessions(prev => 
-          prev.map(s => s.id === sessionId ? { ...s, name } : s)
-        );
-      }
-    } catch (err) {
-      console.error('Error updating session title:', err);
-    }
-  };
+      if (!response.ok) throw new Error('Failed to update session title');
+      return { sessionId, name };
+    },
+    onSuccess: ({ sessionId, name }) => {
+      // Update session in cache
+      queryClient.setQueryData<ChatSession[]>(['sessions'], (old = []) =>
+        old.map(s => s.id === sessionId ? { ...s, name, updated_at: new Date().toISOString() } : s)
+      );
+    },
+    retry: (failureCount: number) => failureCount < MAX_RETRIES
+  });
 
-  const deleteSession = async (sessionId: string) => {
-    if (!session?.access_token) return;
+  // Delete session
+  const { mutate: deleteSession } = useMutation({
+    mutationFn: async (sessionId: string) => {
+      if (!session?.access_token) throw new Error('Not authenticated');
 
-    try {
       const response = await fetch(`${API_URL}/chat/sessions/${sessionId}`, {
         method: 'DELETE',
-        headers: getDeleteHeaders()
+        headers: getAuthHeaders()
       });
 
-      if (response.ok) {
-        setSessions(prev => prev.filter(s => s.id !== sessionId));
-      }
-    } catch (err) {
-      console.error('Error deleting session:', err);
-    }
-  };
-
-  useEffect(() => {
-    loadSessions();
-  }, [loadSessions]);
+      if (!response.ok) throw new Error('Failed to delete session');
+      return sessionId;
+    },
+    onSuccess: (sessionId) => {
+      // Remove session from cache
+      queryClient.setQueryData<ChatSession[]>(['sessions'], (old = []) =>
+        old.filter(s => s.id !== sessionId)
+      );
+      
+      // Also clear the chat data for this session
+      queryClient.removeQueries({
+        queryKey: ['chat', sessionId]
+      });
+    },
+    retry: (failureCount: number) => failureCount < MAX_RETRIES
+  });
 
   return {
     sessions,
     isLoading,
-    loadSessions,
+    refetch,
+    createSession,
     updateSessionTitle,
     deleteSession
   };

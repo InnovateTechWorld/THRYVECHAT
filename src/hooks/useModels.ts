@@ -1,6 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { useDefaultModel } from './useDefaultModel';
+
+// Constants for caching
+const CACHE_TIME = 1000 * 60 * 60 * 2; // 2 hours for models (they don't change often)
+const STALE_TIME = 1000 * 60 * 30; // 30 minutes
+const MAX_RETRIES = 3;
 
 export interface AIModel {
   id: string;
@@ -14,48 +21,66 @@ export interface AIModel {
 }
 
 export const useModels = () => {
-  const [models, setModels] = useState<AIModel[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
+  const { defaultModel } = useDefaultModel();
 
-  const loadModels = useCallback(async () => {
-    if (!session?.access_token) return;
-    
-    setIsLoading(true);
-    setError(null);
-    
-    try {
+  const getAuthHeaders = useCallback(() => ({
+    'Authorization': `Bearer ${session?.access_token}`,
+    'Content-Type': 'application/json'
+  }), [session?.access_token]);
+
+  // Fetch models with React Query caching
+  const { 
+    data: models = [], 
+    isLoading, 
+    error,
+    refetch 
+  } = useQuery<AIModel[]>({
+    queryKey: ['models'] as const,
+    queryFn: async () => {
+      if (!session?.access_token) return [];
+      
       const response = await fetch(`${API_URL}/models`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        }
+        headers: getAuthHeaders()
       });
       
       if (!response.ok) {
-        throw new Error('Failed to fetch models');
+        throw new Error(`HTTP ${response.status}: Failed to fetch models`);
       }
       
       const data = await response.json();
-      setModels(data.data || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      console.error('Error loading models:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [session?.access_token]);
+      return data.data || [];
+    },
+    gcTime: CACHE_TIME,
+    staleTime: STALE_TIME,
+    retry: (failureCount: number) => failureCount < MAX_RETRIES,
+    enabled: !!session?.access_token,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true
+  });
 
-  useEffect(() => {
-    loadModels();
-  }, [loadModels]);
+  // Get the default model or fallback
+  const getEffectiveDefaultModel = useCallback(() => {
+    if (defaultModel && models.find(m => m.id === defaultModel)) {
+      return defaultModel;
+    }
+    
+    // Fallback to first free model or first model
+    const freeModel = models.find(model => {
+      const info = getModelDisplayInfo(model.id);
+      return info.isFree || parseFloat(model.pricing.prompt) === 0;
+    });
+    
+    return freeModel?.id || models[0]?.id || 'mistralai/devstral-small:free';
+  }, [defaultModel, models]);
 
   return {
     models,
     isLoading,
-    error,
-    loadModels
+    error: error ? (error as Error).message : null,
+    refetch,
+    defaultModel,
+    getEffectiveDefaultModel
   };
 };
 
@@ -70,12 +95,47 @@ export const getModelDisplayInfo = (modelId: string) => {
     'anthropic': 'bg-orange-500', 
     'google': 'bg-blue-500',
     'meta': 'bg-purple-500',
-    'mistral': 'bg-red-500'
+    'mistral': 'bg-red-500',
+    'cohere': 'bg-pink-500',
+    'together': 'bg-indigo-500'
+  };
+
+  // Pretty names for providers
+  const providerNames: Record<string, string> = {
+    'openai': 'OpenAI',
+    'anthropic': 'Anthropic',
+    'google': 'Google',
+    'meta': 'Meta',
+    'mistral': 'Mistral',
+    'cohere': 'Cohere',
+    'together': 'Together'
   };
 
   return {
-    provider: provider || 'Unknown',
+    provider: providerNames[provider] || provider || 'Unknown',
     modelName: model || modelId,
-    color: providerColors[provider] || 'bg-gray-500'
+    color: providerColors[provider] || 'bg-gray-500',
+    isFree: modelId.includes('devstral-small') || 
+            modelId.includes('free') || 
+            modelId.includes('llama-3.1-8b') ||
+            modelId.includes('mixtral-8x7b-instruct')
   };
+};
+
+// Helper to get the default free model
+export const getDefaultFreeModel = () => 'mistral/devstral-small';
+
+// Helper to get available free models
+export const getFreeModels = (models: AIModel[]) => {
+  return models.filter(model => {
+    const info = getModelDisplayInfo(model.id);
+    return info.isFree || 
+           model.pricing.prompt === '0' || 
+           parseFloat(model.pricing.prompt) === 0;
+  });
+};
+
+// Helper to validate if a model exists
+export const validateModel = (modelId: string, models: AIModel[]) => {
+  return models.some(model => model.id === modelId);
 };
