@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Zap, Loader2, Plus } from 'lucide-react';
-import { usePayment, Credits } from '@/hooks/usePayment';
+import { usePayment, Credits, SUPPORTED_CURRENCIES } from '@/hooks/usePayment';
 import { CurrencySelector } from './CurrencySelector';
 import { useToast } from '@/hooks/use-toast';
 
@@ -12,11 +12,19 @@ interface CreditTopupProps {
 }
 
 export const CreditTopup: React.FC<CreditTopupProps> = ({ onTopupComplete }) => {
-  const [credits, setCredits] = useState<Credits | null>(null);
   const [selectedCurrency, setSelectedCurrency] = useState('USD');
   const [selectedAmount, setSelectedAmount] = useState(10);
   const [isProcessing, setIsProcessing] = useState(false);
-  const { getCredits, initiatePayment, calculateLocalAmount, isLoading } = usePayment();
+  
+  // ✅ FIX: Use the new optimized hook
+  const { 
+    credits, 
+    initiatePayment, 
+    calculateLocalAmount,
+    isLoading,
+    isToppingUp 
+  } = usePayment();
+  
   const { toast } = useToast();
 
   const topupOptions = [
@@ -27,55 +35,42 @@ export const CreditTopup: React.FC<CreditTopupProps> = ({ onTopupComplete }) => 
     { usd: 100, credits: 100, popular: false },
   ];
 
-  useEffect(() => {
-    loadCredits();
-  }, []);
+  // ✅ FIX: Corrected handleTopup function
+const handleTopup = async () => {
+  setIsProcessing(true);
 
-  const loadCredits = async () => {
-    try {
-      const creditsData = await getCredits();
-      setCredits(creditsData);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load credit balance",
-        variant: "destructive"
-      });
-    }
-  };
+  try {
+    console.log('🔄 CREDIT TOPUP START:', {
+      selectedAmount, // This is USD (10)
+      selectedCurrency, // This is user's currency (NGN)
+      displayAmount: calculateLocalAmount(selectedAmount, selectedCurrency), // This is ₦14,950
+      sendingToBackend: {
+        amount: selectedAmount, // ✅ SEND USD AMOUNT (10)
+        currency: selectedCurrency // ✅ SEND USER'S CURRENCY (NGN)
+      }
+    });
 
-  const handleTopup = async () => {
-    setIsProcessing(true);
-
-    try {
-      const localAmount = calculateLocalAmount(selectedAmount, selectedCurrency);
-      await initiatePayment('topup', localAmount, selectedCurrency);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to initiate payment",
-        variant: "destructive"
-      });
-      setIsProcessing(false);
-    }
-  };
+    // ✅ FIXED: Send USD amount + User's selected currency
+    await initiatePayment({ 
+      amount: selectedAmount, // ✅ USD amount (5, 10, 25, 50, 100)
+      currency: selectedCurrency // ✅ User's selected currency (NGN, EUR, etc.)
+    });
+    
+  } catch (error) {
+    console.error('Topup error:', error);
+    toast({
+      title: "Error",
+      description: error instanceof Error ? error.message : "Failed to initiate payment",
+      variant: "destructive"
+    });
+  } finally {
+    setIsProcessing(false);
+  }
+};
 
   const getCurrencySymbol = (currency: string) => {
-    switch (currency) {
-      case 'USD': return '$';
-      case 'EUR': return '€';
-      case 'GBP': return '£';
-      case 'NGN': return '₦';
-      case 'GHS': return '₵';
-      case 'KES': return 'KSh';
-      case 'ZAR': return 'R';
-      case 'JPY': return '¥';
-      case 'CNY': return '¥';
-      case 'INR': return '₹';
-      case 'AED': return 'د.إ';
-      case 'SAR': return '﷼';
-      default: return '$';
-    }
+    const currencyData = SUPPORTED_CURRENCIES.find(c => c.code === currency);
+    return currencyData?.symbol || '$';
   };
 
   return (
@@ -190,11 +185,11 @@ export const CreditTopup: React.FC<CreditTopupProps> = ({ onTopupComplete }) => 
 
             <Button
               onClick={handleTopup}
-              disabled={isProcessing || isLoading}
+              disabled={isProcessing || isLoading || isToppingUp}
               className="w-full"
               size="lg"
             >
-              {isProcessing ? (
+              {(isProcessing || isToppingUp) ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Processing Payment...

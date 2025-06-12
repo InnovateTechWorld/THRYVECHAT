@@ -35,14 +35,13 @@ const Billing = () => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
 
-  const { 
-    billingDashboard,
-    verifyPayment, 
-    cancelSubscription,
-    isLoading,
-    dashboardLoading,
-    refreshBillingData
-  } = usePayment();
+const { 
+  billingDashboard,
+  verifyPayment, 
+  cancelSubscription,
+  isLoading: dashboardLoading,
+  refreshBillingData
+} = usePayment();
 
   const formatCurrency = (value: any): string => {
     const numValue = Number(value || 0);

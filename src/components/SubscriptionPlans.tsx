@@ -1,72 +1,49 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check, Crown, Zap, Users, Brain, Database, Loader2 } from 'lucide-react';
-import { usePayment, Plan } from '@/hooks/usePayment';
+import { usePayment, Plan, SUPPORTED_CURRENCIES } from '@/hooks/usePayment';
 import { CurrencySelector } from './CurrencySelector';
 import { useToast } from '@/hooks/use-toast';
 
 interface SubscriptionPlansProps {
   currentPlan?: string;
-  onPlanSelect?: (plan: Plan) => void;
+  onPlanSelect?: () => void;
 }
 
 export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
   currentPlan,
   onPlanSelect
 }) => {
-  const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedCurrency, setSelectedCurrency] = useState('USD');
-  const [isProcessing, setIsProcessing] = useState<string | null>(null);
-  const { getPlans, createSubscription, initiatePayment, calculateLocalAmount, isLoading } = usePayment();
+  
+  const { 
+    plans, 
+    subscription, 
+    createSubscription: subscribeToPlan, 
+    isSubscribing, 
+    isLoading,
+    calculateLocalAmount
+  } = usePayment();
+  
   const { toast } = useToast();
-
-  useEffect(() => {
-    loadPlans();
-  }, []);
-
-  const loadPlans = async () => {
-    try {
-      const plansData = await getPlans();
-      setPlans(plansData);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load subscription plans",
-        variant: "destructive"
-      });
-    }
-  };
 
   const handlePlanSelect = async (plan: Plan) => {
     if (plan.name === currentPlan) return;
 
-    setIsProcessing(plan.id);
-
     try {
-      const subscriptionResult = await createSubscription(plan.id);
-      
-      if (subscriptionResult.requiresPayment) {
-        // Paid plan - initiate payment
-        const localAmount = calculateLocalAmount(subscriptionResult.amount, selectedCurrency);
-        await initiatePayment('subscription', localAmount, selectedCurrency, plan.id);
-      } else {
-        // Free plan - activated immediately
-        toast({
-          title: "Plan Activated!",
-          description: `${plan.name} plan activated successfully`,
-        });
-        onPlanSelect?.(plan);
-      }
+      await subscribeToPlan({ 
+        planId: plan.id, 
+        currency: selectedCurrency 
+      });
+      if (onPlanSelect) onPlanSelect();
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to select plan",
+        description: "Failed to subscribe to plan",
         variant: "destructive"
       });
-    } finally {
-      setIsProcessing(null);
     }
   };
 
@@ -91,6 +68,12 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
   const formatLimit = (limit: number) => {
     if (limit === -1) return 'Unlimited';
     return limit.toString();
+  };
+
+  // ✅ YOUR PRECIOUS CURRENCY SYMBOL FUNCTION (NOT REMOVED!)
+  const getCurrencySymbol = (currency: string) => {
+    const currencyData = SUPPORTED_CURRENCIES.find(c => c.code === currency);
+    return currencyData?.symbol || '$';
   };
 
   if (isLoading) {
@@ -124,10 +107,7 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
         {plans.map((plan) => {
           const isCurrentPlan = plan.name === currentPlan;
           const localPrice = calculateLocalAmount(plan.price, selectedCurrency);
-          const currencySymbol = selectedCurrency === 'USD' ? '$' : 
-            selectedCurrency === 'EUR' ? '€' : 
-            selectedCurrency === 'GBP' ? '£' : 
-            selectedCurrency === 'NGN' ? '₦' : '$';
+          const currencySymbol = getCurrencySymbol(selectedCurrency);
 
           return (
             <Card 
@@ -199,11 +179,11 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
 
                 <Button
                   onClick={() => handlePlanSelect(plan)}
-                  disabled={isCurrentPlan || isProcessing === plan.id}
+                  disabled={isCurrentPlan || isSubscribing}
                   className="w-full"
                   variant={isCurrentPlan ? 'outline' : 'default'}
                 >
-                  {isProcessing === plan.id ? (
+                  {isSubscribing ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Processing...
