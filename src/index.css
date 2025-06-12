@@ -464,10 +464,32 @@
   }
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* Enhanced Chat Bubble Animation */
 .chat-bubble {
   @apply animate-in slide-in-from-bottom-2 duration-300;
   animation: slide-in-from-bottom 0.3s ease-out;
+}
+
+/* Onboarding Animation Classes */
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out;
+}
+
+.animate-slide-in-from-bottom {
+  animation: slide-in-from-bottom 0.4s ease-out;
 }
 
 /* Mobile Optimizations */

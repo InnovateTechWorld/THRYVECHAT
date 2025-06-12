@@ -29,19 +29,45 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
   
   const { toast } = useToast();
 
+  // ✅ FIXED: Better logic to check if plan is truly active
   const handlePlanSelect = async (plan: Plan) => {
-    if (plan.name === currentPlan) return;
+    console.log('🔄 Plan selection clicked:', {
+      planName: plan.name,
+      currentPlan,
+      subscriptionStatus: subscription?.status,
+      isActive: subscription?.status === 'active'
+    });
+
+    // ✅ FIXED: Only skip if it's the same plan AND subscription is active
+    const isPlanActiveAndSame = plan.name === currentPlan && subscription?.status === 'active';
+    
+    if (isPlanActiveAndSame) {
+      console.log('ℹ️ Plan already active, skipping');
+      return;
+    }
 
     try {
+      console.log('💳 Activating plan:', plan.name);
+      
       await subscribeToPlan({ 
         planId: plan.id, 
         currency: selectedCurrency 
       });
+      
+      console.log('✅ Plan activated successfully');
+      
       if (onPlanSelect) onPlanSelect();
+      
+      toast({
+        title: "Plan Activated!",
+        description: `${plan.name} plan has been activated successfully`,
+      });
+      
     } catch (error) {
+      console.error('❌ Plan activation failed:', error);
       toast({
         title: "Error",
-        description: "Failed to subscribe to plan",
+        description: error instanceof Error ? error.message : "Failed to activate plan",
         variant: "destructive"
       });
     }
@@ -70,7 +96,6 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
     return limit.toString();
   };
 
-  // ✅ YOUR PRECIOUS CURRENCY SYMBOL FUNCTION (NOT REMOVED!)
   const getCurrencySymbol = (currency: string) => {
     const currencyData = SUPPORTED_CURRENCIES.find(c => c.code === currency);
     return currencyData?.symbol || '$';
@@ -105,7 +130,11 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {plans.map((plan) => {
+          // ✅ FIXED: Better logic for determining plan status
           const isCurrentPlan = plan.name === currentPlan;
+          const isPlanActive = isCurrentPlan && subscription?.status === 'active';
+          const isPlanInactive = isCurrentPlan && subscription?.status !== 'active';
+          
           const localPrice = calculateLocalAmount(plan.price, selectedCurrency);
           const currencySymbol = getCurrencySymbol(selectedCurrency);
 
@@ -113,9 +142,11 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
             <Card 
               key={plan.id} 
               className={`relative transition-all duration-200 ${
-                isCurrentPlan 
-                  ? 'ring-2 ring-primary shadow-lg' 
-                  : 'hover:shadow-md'
+                isPlanActive 
+                  ? 'ring-2 ring-green-500 shadow-lg' 
+                  : isPlanInactive
+                    ? 'ring-2 ring-yellow-500 shadow-lg'
+                    : 'hover:shadow-md'
               } ${plan.name === 'Pro' ? 'border-blue-200 bg-blue-50/50 dark:bg-blue-950/20' : ''}`}
             >
               {plan.name === 'Pro' && (
@@ -179,17 +210,19 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
 
                 <Button
                   onClick={() => handlePlanSelect(plan)}
-                  disabled={isCurrentPlan || isSubscribing}
+                  disabled={isPlanActive || isSubscribing} // ✅ FIXED: Only disable if truly active
                   className="w-full"
-                  variant={isCurrentPlan ? 'outline' : 'default'}
+                  variant={isPlanActive ? 'outline' : 'default'}
                 >
                   {isSubscribing ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Processing...
                     </>
-                  ) : isCurrentPlan ? (
+                  ) : isPlanActive ? (
                     'Current Plan'
+                  ) : isPlanInactive ? (
+                    `Activate ${plan.name}` // ✅ FIXED: Allow activation of inactive plans
                   ) : plan.price === 0 ? (
                     'Get Started'
                   ) : (
@@ -197,9 +230,16 @@ export const SubscriptionPlans: React.FC<SubscriptionPlansProps> = ({
                   )}
                 </Button>
 
-                {isCurrentPlan && (
+                {/* ✅ FIXED: Better status indicators */}
+                {isPlanActive && (
                   <div className="text-center">
-                    <Badge variant="secondary">Active</Badge>
+                    <Badge variant="default" className="bg-green-500">Active</Badge>
+                  </div>
+                )}
+                
+                {isPlanInactive && (
+                  <div className="text-center">
+                    <Badge variant="secondary" className="bg-yellow-500 text-white">Inactive - Click to Activate</Badge>
                   </div>
                 )}
               </CardContent>
