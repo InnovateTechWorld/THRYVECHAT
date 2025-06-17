@@ -23,6 +23,10 @@
         { "source": "/api-analytics", "destination": "/index.html" },
 
     { "source": "/overall-analytics/:path*", "destination": "/index.html" },
-    { "source": "/overall-analytics", "destination": "/index.html" }
+    { "source": "/overall-analytics", "destination": "/index.html" },
+    { "source": "/onboarding/model-selection", "destination": "/index.html" },
+    { "source": "/onboarding", "destination": "/index.html" },
+        { "source": "/onboarding/:path*", "destination": "/index.html" }
+
   ]
 }
