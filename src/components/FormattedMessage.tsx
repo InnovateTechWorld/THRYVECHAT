@@ -129,6 +129,47 @@ const Text: React.FC<TextProps> = ({ section }) => {
   );
 };
 
+interface TableProps {
+  section: MessageSection;
+}
+
+const Table: React.FC<TableProps> = ({ section }) => {
+  if (!section.rows || section.rows.length === 0) return null;
+
+  return (
+    <div className="my-4 overflow-x-auto">
+      <table className="min-w-full border-collapse">
+        <thead className="bg-muted/50">
+          <tr>
+            {section.rows[0].cells.map((cell, index) => (
+              <th
+                key={index}
+                className="border border-border px-4 py-2 text-left text-sm font-medium"
+              >
+                <span dangerouslySetInnerHTML={{ __html: processInlineElements(cell.content) }} />
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {section.rows.slice(1).map((row, rowIndex) => (
+            <tr key={rowIndex} className="even:bg-muted/30">
+              {row.cells.map((cell, cellIndex) => (
+                <td
+                  key={cellIndex}
+                  className="border border-border px-4 py-2 text-sm whitespace-pre-wrap"
+                >
+                  <span dangerouslySetInnerHTML={{ __html: processInlineElements(cell.content) }} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 export const FormattedMessage: React.FC<FormattedMessageProps> = ({
   message,
   showTimestamp = false,
@@ -169,6 +210,8 @@ export const FormattedMessage: React.FC<FormattedMessageProps> = ({
                   return <Heading key={index} section={section} />;
                 case 'quote':
                   return <Quote key={index} section={section} />;
+                case 'table':
+                  return <Table key={index} section={section} />;
                 case 'text':
                 default:
                   return <Text key={index} section={section} />;
@@ -188,6 +231,50 @@ export const FormattedMessage: React.FC<FormattedMessageProps> = ({
 
 // CSS classes for styling (to be added to your global CSS)
 export const messageStyles = `
+/* Table styles */
+.formatted-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+}
+
+.formatted-content th {
+  background-color: hsl(var(--muted) / 0.5);
+  font-weight: 600;
+  text-align: left;
+  padding: 0.75rem;
+  border: 1px solid hsl(var(--border));
+}
+
+.formatted-content td {
+  padding: 0.75rem;
+  border: 1px solid hsl(var(--border));
+  line-height: 1.5;
+}
+
+.formatted-content tr:nth-child(even) {
+  background-color: hsl(var(--muted) / 0.3);
+}
+
+.formatted-content tr:hover {
+  background-color: hsl(var(--muted) / 0.2);
+}
+
+/* Table responsive styles */
+@media (max-width: 640px) {
+  .formatted-content table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .formatted-content th,
+  .formatted-content td {
+    min-width: 160px;
+  }
+}
+
 .message-container {
   margin-bottom: 1rem;
 }

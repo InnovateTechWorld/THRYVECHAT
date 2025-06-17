@@ -11,12 +11,22 @@ export interface FormattedMessage {
   sections?: MessageSection[];
 }
 
+export interface TableCell {
+  content: string;
+  isHeader?: boolean;
+}
+
+export interface TableRow {
+  cells: TableCell[];
+}
+
 export interface MessageSection {
   type: 'text' | 'code' | 'list' | 'heading' | 'quote' | 'table';
   content: string;
   language?: string; // For code blocks
   items?: string[]; // For lists
   level?: number; // For headings (1-6)
+  rows?: TableRow[]; // For tables
 }
 
 /**
@@ -34,6 +44,51 @@ export function formatAIResponse(content: string): MessageSection[] {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmedLine = line.trim();
+
+    // Handle tables
+    if (trimmedLine.startsWith('|')) {
+      let tableRows: TableRow[] = [];
+      let currentLine = i;
+
+      // Process table rows until we find a line that doesn't start with |
+      while (currentLine < lines.length && lines[currentLine].trim().startsWith('|')) {
+        const rowContent = lines[currentLine].trim();
+        
+        // Skip separator rows (contains only |, -, and spaces)
+        if (!/[^|\s-]/.test(rowContent)) {
+          currentLine++;
+          continue;
+        }
+
+        // Parse cells from the row
+        const cells = rowContent
+          .split('|')
+          .slice(1, -1) // Remove empty cells from start/end
+          .map(cell => ({
+            content: cell.trim(),
+            isHeader: currentLine === i // First row cells are headers
+          }));
+
+        if (cells.length > 0) {
+          tableRows.push({ cells });
+        }
+
+        currentLine++;
+      }
+
+      // If we found table rows, add them as a table section
+      if (tableRows.length > 0) {
+        sections.push({
+          type: 'table',
+          content: '',
+          rows: tableRows
+        });
+        
+        // Update outer loop counter
+        i = currentLine - 1;
+        continue;
+      }
+    }
 
     // Handle code blocks
     if (trimmedLine.startsWith('```')) {
