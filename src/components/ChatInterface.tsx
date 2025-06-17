@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { AddToNotesButton } from '@/components/AddToNotesButton';
 import { ExportAsApiButton } from '@/components/ExportAsApiButton';
 import { FormattedMessage } from '@/components/FormattedMessage';
+import { UpgradeDialog } from '@/components/UpgradeDialog';
 import { useChat, useChatSessions } from '@/hooks/useChat';
 import { useModels, getModelDisplayInfo } from '@/hooks/useModels';
 import { useDefaultModel } from '@/hooks/useDefaultModel';
@@ -36,13 +37,16 @@ export const ChatInterface = ({ sessionId = 'default' }: ChatInterfaceProps) => 
 
   // Use our cached hooks
   const { 
-    messages, 
-    isLoading, 
-    isStreaming, 
-    error, 
-    sendMessage, 
+    messages,
+    isLoading,
+    isStreaming,
+    error,
+    sendMessage,
     retryMessage,
-    getEffectiveDefaultModel 
+    getEffectiveDefaultModel,
+    showUpgradeDialog,
+    setShowUpgradeDialog,
+    selectedModelForUpgrade
   } = useChat(sessionId);
   
   const { models, isLoading: modelsLoading } = useModels();
@@ -471,6 +475,13 @@ export const ChatInterface = ({ sessionId = 'default' }: ChatInterfaceProps) => 
           <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
+
+      {/* Upgrade Dialog */}
+      <UpgradeDialog
+        isOpen={showUpgradeDialog}
+        onClose={() => setShowUpgradeDialog(false)}
+        modelName={models.find(m => m.id === selectedModelForUpgrade)?.name || 'this model'}
+      />
 
       {/* Enhanced Input Area */}
       <div className="border-t border-border/50 p-3 md:p-4 bg-card/30 backdrop-blur-md flex-shrink-0 safe-bottom">

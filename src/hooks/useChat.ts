@@ -4,6 +4,7 @@ import { API_URL } from '../lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDefaultModel } from './useDefaultModel';
 import { getDefaultFreeModel } from './useModels';
+import { useToast } from '@/hooks/use-toast';
 
 // Constants for optimized caching
 const MESSAGE_CACHE_TIME = 1000 * 60 * 60; // 1 hour for messages
@@ -45,9 +46,12 @@ interface CreateSessionParams {
 export const useChat = (sessionId: string) => {
   const [error, setError] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [selectedModelForUpgrade, setSelectedModelForUpgrade] = useState<string>('');
   const { session } = useAuth();
   const queryClient = useQueryClient();
   const { defaultModel } = useDefaultModel();
+  const { toast } = useToast();
 
   const getAuthHeaders = useCallback(() => ({
     'Authorization': `Bearer ${session?.access_token}`,
@@ -152,6 +156,30 @@ export const useChat = (sessionId: string) => {
           })
         });
 
+        if (response.status === 401 || response.status === 402) {
+          // Update assistant message to show subscription required
+          queryClient.setQueryData<Message[]>(['chat', sessionId], (old = []) =>
+            old.map(msg =>
+              msg.id === assistantMessageId
+                ? {
+                    ...msg,
+                    content: `${effectiveModel} requires a subscription plan. Please upgrade to continue.`,
+                    isStreaming: false,
+                    error: true
+                  }
+                : msg
+            )
+          );
+
+          setSelectedModelForUpgrade(effectiveModel);
+          setShowUpgradeDialog(true);
+          
+          // Return early to avoid throwing error
+          return {
+            content: `${effectiveModel} requires a subscription plan. Please upgrade to continue.`
+          };
+        }
+
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: Failed to send message`);
         }
@@ -230,20 +258,17 @@ export const useChat = (sessionId: string) => {
         throw streamError;
       }
     },
-    retry: (failureCount: number, error: Error) => {
-      // Don't retry authentication errors
-      if (error.message.includes('401') || error.message.includes('Not authenticated')) {
-        return false;
-      }
-      
-      if (failureCount < MAX_RETRIES) {
-        setTimeout(() => {}, RETRY_DELAY * Math.pow(2, failureCount));
-        return true;
-      }
-      return false;
-    },
+    retry: false,
     onError: (error: Error) => {
-      setError(error.message);
+      // Only show error for non-subscription issues
+      if (!error.message.includes('requires a subscription')) {
+        setError(error.message);
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive"
+        });
+      }
       setIsStreaming(false);
     },
     onSuccess: () => {
@@ -290,7 +315,10 @@ export const useChat = (sessionId: string) => {
     error,
     sendMessage: send,
     retryMessage,
-    getEffectiveDefaultModel
+    getEffectiveDefaultModel,
+    showUpgradeDialog,
+    setShowUpgradeDialog,
+    selectedModelForUpgrade
   };
 };
 
