@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -22,6 +21,7 @@ import Billing from "./pages/Billing";
 import Settings from "./pages/Settings";
 import ApiAnalytics from "./pages/ApiAnalytics";
 import OverallAnalytics from "./pages/OverallAnalytics";
+import OnboardingModelSelection from "./pages/OnboardingModelSelection";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -96,6 +96,11 @@ const App = () => (
             <Route path="/settings" element={
               <ProtectedRoute>
                 <Settings />
+              </ProtectedRoute>
+            } />
+            <Route path="/onboarding/model-selection" element={
+              <ProtectedRoute>
+                <OnboardingModelSelection />
               </ProtectedRoute>
             } />
             <Route path="*" element={<NotFound />} />

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +6,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { 
   ArrowRight, 
   ArrowLeft, 
@@ -25,39 +24,39 @@ import { SubscriptionPlans } from './SubscriptionPlans';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePayment } from '@/hooks/usePayment';
-import { useModels, getModelDisplayInfo } from '@/hooks/useModels';
-import { useDefaultModel } from '@/hooks/useDefaultModel';
 import { API_URL } from '@/lib/api';
-import { cn } from '@/lib/utils';
 
 export const Onboarding: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { session, user } = useAuth();
   
-  const { 
-    currentStep, 
-    totalSteps, 
-    setCurrentStep, 
+  const {
+    currentStep,
+    totalSteps,
+    setCurrentStep,
     completeOnboarding,
-    skipOnboarding 
+    skipOnboarding,
+    isNewUser
   } = useOnboarding();
 
   // Form states
   const [memoryContent, setMemoryContent] = useState('');
   const [noteContent, setNoteContent] = useState('');
-  const [selectedModel, setSelectedModel] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Data states
   const [subscription, setSubscription] = useState<any>(null);
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(false);
-  const [subscriptionJustActivated, setSubscriptionJustActivated] = useState(false);
+  const [hasAutoActivated, setHasAutoActivated] = useState(false);
 
   // Use existing hooks instead of custom API calls
-  const { models, isLoading: isLoadingModels } = useModels();
-  const { subscription: paymentSubscription, isSubscribing } = usePayment();
-  const { setDefaultModel, isSettingDefault } = useDefaultModel();
+  const {
+    subscription: paymentSubscription,
+    isSubscribing,
+    createSubscription,
+    plans
+  } = usePayment();
 
   // Auth headers helper
   const getAuthHeaders = () => ({
@@ -65,27 +64,34 @@ export const Onboarding: React.FC = () => {
     'Content-Type': 'application/json'
   });
 
-  const handleNext = async () => {
-    if (currentStep < totalSteps - 1) {
-      if (currentStep === 1) {
-        // Memory/Notes step
-        await handleMemoryNotesSubmit();
-      } else if (currentStep === 2) {
-        // Subscription step - load subscription status
-        await loadSubscriptionStatus();
-        setCurrentStep(currentStep + 1);
-      } else if (currentStep === 3) {
-        // Model selection step
-        await handleModelSelection();
+
+const handleNext = async () => {
+  console.log('🔍 handleNext called, currentStep:', currentStep);
+  
+  try {
+    if (currentStep === 1) {
+      // Memory/Notes step
+      await handleMemoryNotesSubmit();
+      setCurrentStep(currentStep + 1);
+    } else if (currentStep === 2) {
+      // For subscription step, handle navigation in one place
+      if (subscription || (isNewUser && await activateFreePlan())) {
+        console.log('🔍 Step 2 - Navigating to model selection');
+        window.location.href = '/onboarding/model-selection';
       } else {
-        setCurrentStep(currentStep + 1);
+        toast({
+          title: "Subscription Required",
+          description: "Please select a subscription plan to continue.",
+          variant: "destructive"
+        });
       }
     } else {
-      // Final step
-      completeOnboarding();
-      navigate('/chat');
+      setCurrentStep(currentStep + 1);
     }
-  };
+  } catch (error) {
+    console.error('❌ Error in handleNext:', error);
+  }
+};
 
   const handleBack = () => {
     if (currentStep > 0) {
@@ -114,28 +120,60 @@ export const Onboarding: React.FC = () => {
     }
   };
 
+  // Auto-activate free plan for new users using the proper payment system
+  const activateFreePlan = React.useCallback(async () => {
+    if (hasAutoActivated) {
+      console.log('🔍 Free plan already activated, skipping...');
+      return;
+    }
 
-  // Handler for when subscription plan is successfully selected
-  const handleSubscriptionSuccess = async () => {
-    console.log('🎉 Subscription plan activated successfully!');
+    setIsLoadingSubscription(true);
+    setHasAutoActivated(true);
     
-    setSubscriptionJustActivated(true);
-    
-    // Show success message
-    toast({
-      title: "Plan Activated!",
-      description: "Your subscription has been activated successfully. You can now select AI models.",
-    });
-
-    // Refresh subscription status
-    await loadSubscriptionStatus();
-    
-    // Auto-advance to next step after a brief delay to show the success message
-    setTimeout(() => {
-      console.log('➡️ Auto-advancing to model selection step');
-      setCurrentStep(currentStep + 1);
-    }, 1500);
-  };
+    try {
+      console.log('🆓 Auto-activating free plan for new user...');
+      
+      // Find the free plan from available plans
+      const freePlan = plans?.find(plan =>
+        plan.price === 0 || plan.name.toLowerCase().includes('free')
+      );
+      
+      if (!freePlan) {
+        console.error('❌ No free plan found');
+        return false;
+      }
+      
+      console.log('🆓 Found free plan, activating...', freePlan);
+      
+      // Use the existing createSubscription function
+      let success = false;
+      await new Promise<void>((resolve) => {
+        createSubscription({ planId: freePlan.id }, {
+          onSuccess: (data) => {
+            console.log('✅ Free plan activated successfully:', data);
+            toast({
+              title: "Welcome!",
+              description: "Free plan activated! Redirecting to model selection...",
+            });
+            success = true;
+            resolve();
+          },
+          onError: (error) => {
+            console.error('❌ Error activating free plan:', error);
+            resolve();
+          }
+        });
+      });
+      
+      return success;
+      
+    } catch (error) {
+      console.error('❌ Error activating free plan:', error);
+      return false;
+    } finally {
+      setIsLoadingSubscription(false);
+    }
+  }, [hasAutoActivated, plans, createSubscription, toast, setHasAutoActivated, setIsLoadingSubscription]);
 
   const handleMemoryNotesSubmit = async () => {
     setIsSubmitting(true);
@@ -194,59 +232,13 @@ export const Onboarding: React.FC = () => {
     }
   };
 
-  const handleModelSelection = async () => {
-    if (!selectedModel) {
-      toast({
-        title: "Please select a model",
-        description: "You need to choose a default AI model to continue.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      console.log('🤖 Setting default model:', selectedModel);
-      
-      const response = await fetch(`${API_URL}/default-model`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ model_id: selectedModel })
-      });
-
-      if (response.ok) {
-        toast({
-          title: "Success!",
-          description: "Your default model has been set.",
-        });
-        setCurrentStep(currentStep + 1);
-      } else {
-        throw new Error('Failed to set default model');
-      }
-    } catch (error) {
-      console.error('❌ Failed to set default model:', error);
-      toast({
-        title: "Error",
-        description: `Failed to set default model: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Models are now loaded automatically by useModels hook - no manual loading needed
-
-  // Watch for subscription activation and auto-advance
+  // Auto-activate free plan when user reaches step 2
   React.useEffect(() => {
-    if (currentStep === 2 && paymentSubscription && paymentSubscription.status === 'active' && !subscriptionJustActivated) {
-      console.log('🎉 Subscription detected as active, triggering success handler');
-      handleSubscriptionSuccess();
+    if (currentStep === 2 && isNewUser && plans?.length > 0 && !hasAutoActivated) {
+      console.log('🔍 New user reached step 2, activating free plan...');
+      handleNext();
     }
-  }, [paymentSubscription, currentStep, subscriptionJustActivated]);
-
-  const canProceedToModels = (paymentSubscription && paymentSubscription.status === 'active') ||
-                            (subscription && subscription.status === 'active');
+  }, [currentStep, isNewUser, plans, hasAutoActivated]);
 
   const renderStep = () => {
     switch (currentStep) {
@@ -262,18 +254,7 @@ export const Onboarding: React.FC = () => {
           />
         );
       case 2:
-        return <SubscriptionStep onPlanSelect={handleSubscriptionSuccess} />;
-      case 3:
-        return (
-          <ModelSelectionStep
-            selectedModel={selectedModel}
-            setSelectedModel={setSelectedModel}
-            models={models}
-            isLoadingModels={isLoadingModels}
-            canProceed={canProceedToModels}
-            isLoadingSubscription={isLoadingSubscription}
-          />
-        );
+        return <SubscriptionStep />;
       default:
         return <WelcomeStep />;
     }
@@ -284,7 +265,6 @@ export const Onboarding: React.FC = () => {
       case 0: return 'Welcome to Echo Verse AI';
       case 1: return 'Add Your First Memory & Note';
       case 2: return 'Choose Your Plan';
-      case 3: return 'Select Your Default Model';
       default: return 'Getting Started';
     }
   };
@@ -294,12 +274,13 @@ export const Onboarding: React.FC = () => {
       case 0: return true;
       case 1: return true; // Allow proceeding even without content
       case 2: return true; // Allow proceeding to check subscription
-      case 3: return selectedModel && canProceedToModels;
       default: return true;
     }
   };
 
-  const progress = ((currentStep + 1) / totalSteps) * 100;
+  // Adjust totalSteps to 3 since we're removing the inline model selection step
+  const adjustedTotalSteps = 3;
+  const progress = ((currentStep + 1) / adjustedTotalSteps) * 100;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex items-center justify-center p-4">
@@ -311,7 +292,7 @@ export const Onboarding: React.FC = () => {
           </div>
           <Progress value={progress} className="w-full max-w-md mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">
-            Step {currentStep + 1} of {totalSteps}
+            Step {currentStep + 1} of {adjustedTotalSteps}
           </p>
         </div>
 
@@ -358,10 +339,10 @@ export const Onboarding: React.FC = () => {
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     {isSubscribing ? 'Activating Plan...' : 'Processing...'}
                   </>
-                ) : currentStep === totalSteps - 1 ? (
+                ) : currentStep === adjustedTotalSteps - 1 ? (
                   <>
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Complete
+                    Next: Select Model
+                    <ArrowRight className="w-4 h-4 ml-2" />
                   </>
                 ) : (
                   <>
@@ -486,12 +467,9 @@ const MemoryNotesStep: React.FC<MemoryNotesStepProps> = ({
   </div>
 );
 
-interface SubscriptionStepProps {
-  onPlanSelect: () => void;
-}
-
-const SubscriptionStep: React.FC<SubscriptionStepProps> = ({ onPlanSelect }) => {
+const SubscriptionStep: React.FC = () => {
   const { isSubscribing } = usePayment();
+  const { isNewUser } = useOnboarding();
   
   return (
     <div className="space-y-6">
@@ -504,11 +482,16 @@ const SubscriptionStep: React.FC<SubscriptionStepProps> = ({ onPlanSelect }) => 
           )}
         </div>
         <h3 className="text-xl font-semibold mb-2">
-          {isSubscribing ? 'Activating Your Plan...' : 'Choose Your Plan'}
+          {isSubscribing ? 'Activating Your Plan...' : isNewUser ? 'Activating Free Plan...' : 'Choose Your Plan'}
         </h3>
         <p className="text-muted-foreground max-w-md mx-auto">
           {isSubscribing ? (
             'Please wait while we activate your subscription plan.'
+          ) : isNewUser ? (
+            <>
+              Setting up your <strong className="text-green-600">free plan</strong> automatically.
+              You will be redirected to model selection automatically.
+            </>
           ) : (
             <>
               Select a subscription plan to unlock AI models and features.
@@ -523,166 +506,16 @@ const SubscriptionStep: React.FC<SubscriptionStepProps> = ({ onPlanSelect }) => 
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
           <p className="text-muted-foreground">Processing your subscription...</p>
         </div>
-      ) : (
-        <SubscriptionPlans onPlanSelect={onPlanSelect} />
-      )}
-    </div>
-  );
-};
-
-interface ModelSelectionStepProps {
-  selectedModel: string;
-  setSelectedModel: (model: string) => void;
-  models: any[];
-  isLoadingModels: boolean;
-  canProceed: boolean;
-  isLoadingSubscription: boolean;
-}
-
-const ModelSelectionStep: React.FC<ModelSelectionStepProps> = ({
-  selectedModel,
-  setSelectedModel,
-  models,
-  isLoadingModels,
-  canProceed,
-  isLoadingSubscription,
-}) => {
-  if (isLoadingSubscription) {
-    return (
-      <div className="text-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
-        <p className="text-muted-foreground">Checking subscription status...</p>
-      </div>
-    );
-  }
-
-  if (!canProceed) {
-    return (
-      <div className="text-center space-y-6">
-        <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto">
-          <AlertCircle className="w-8 h-8 text-red-500" />
-        </div>
-        <div>
-          <h3 className="text-xl font-semibold mb-2">Active Subscription Required</h3>
-          <p className="text-muted-foreground max-w-md mx-auto">
-            You need an active subscription plan to select AI models. 
-            Please go back and choose a plan first.
+      ) : isNewUser ? (
+        <div className="text-center py-8">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Setting up your free plan...</p>
+          <p className="text-xs text-muted-foreground mt-2">
+            This should redirect automatically. If not, click "Next: Select Model" above.
           </p>
         </div>
-      </div>
-    );
-  }
-
-  if (isLoadingModels) {
-    return (
-      <div className="text-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
-        <p className="text-muted-foreground">Loading available models...</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Zap className="w-8 h-8 text-yellow-500" />
-        </div>
-        <h3 className="text-xl font-semibold mb-2">Select Your Default Model</h3>
-        <p className="text-muted-foreground max-w-md mx-auto">
-          Choose your preferred AI model for conversations. You can always change this later in settings.
-        </p>
-      </div>
-
-      {/* Show selected model if one is chosen */}
-      {selectedModel && Array.isArray(models) && models.length > 0 && (
-        <div className="max-w-md mx-auto">
-          <div className="text-sm text-muted-foreground mb-2">Selected Model:</div>
-          <Card className="border-primary bg-primary/5">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <CheckCircle className="w-5 h-5 text-primary flex-shrink-0" />
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <div className={cn("w-2 h-2 rounded-full", getModelDisplayInfo(selectedModel).color)} />
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium text-sm truncate">
-                      {models.find(m => m.id === selectedModel)?.name || getModelDisplayInfo(selectedModel).modelName}
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{selectedModel}</span>
-                      {getModelDisplayInfo(selectedModel).isFree && (
-                        <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">FREE</Badge>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Model search and selection */}
-      <div className="max-w-2xl mx-auto">
-        <Card>
-          <CardContent className="p-0">
-            <Command className="rounded-lg border-0">
-              <CommandInput placeholder="Search models..." className="border-0" />
-              <CommandEmpty>No models found.</CommandEmpty>
-              <CommandList className="max-h-[300px]">
-                <CommandGroup>
-                  {Array.isArray(models) && models.map((model) => {
-                    const displayInfo = getModelDisplayInfo(model.id);
-                    const isSelected = selectedModel === model.id;
-                    
-                    return (
-                      <CommandItem
-                        key={model.id}
-                        onSelect={() => setSelectedModel(model.id)}
-                        className={cn(
-                          "cursor-pointer",
-                          isSelected && "bg-primary/10"
-                        )}
-                      >
-                        <CheckCircle
-                          className={cn(
-                            "mr-3 h-4 w-4",
-                            isSelected ? "opacity-100 text-primary" : "opacity-0"
-                          )}
-                        />
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className={cn("w-2 h-2 rounded-full", displayInfo.color)} />
-                          <div className="min-w-0 flex-1">
-                            <div className="font-medium text-sm truncate flex items-center gap-2">
-                              {model.name}
-                              {displayInfo.isFree && (
-                                <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">FREE</Badge>
-                              )}
-                            </div>
-                            <div className="text-xs text-muted-foreground truncate">
-                              {model.id}
-                            </div>
-                            {model.pricing && (
-                              <div className="text-xs text-muted-foreground mt-1">
-                                ${model.pricing.prompt || 0}/1K tokens • {model.context_length?.toLocaleString() || 'N/A'} context
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </CommandItem>
-                    );
-                  })}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </CardContent>
-        </Card>
-      </div>
-
-      {(!Array.isArray(models) || models.length === 0) && (
-        <div className="text-center py-8">
-          <p className="text-muted-foreground">No models available. Please contact support.</p>
-        </div>
+      ) : (
+        <SubscriptionPlans onPlanSelect={() => {}} />
       )}
     </div>
   );
