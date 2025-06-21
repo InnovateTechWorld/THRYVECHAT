@@ -64,7 +64,7 @@ const Chat = () => {
           <div className="flex items-center justify-between p-4 border-b border-border bg-card text-foreground"> {/* Ensured bg-card and text-foreground */}
             <div className="flex items-center gap-4">
               <div>
-                <h1 className="text-lg font-semibold gradient-text">Echo Verse AI Flow</h1>
+                <h1 className="text-lg font-semibold gradient-text">Thryve</h1>
                 <p className="text-sm text-muted-foreground">Multi-model AI conversations with persistent memory</p>
               </div>
             </div>

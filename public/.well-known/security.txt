@@ -1,0 +1,6 @@
+# Security Policy for Thryve
+Contact: mailto:security@getthryve.live
+Expires: 2026-06-21T23:00:00.000Z
+Preferred-Languages: en
+Policy: https://app.getthryve.live/security-policy
+Canonical: https://app.getthryve.live/.well-known/security.txt

@@ -2,7 +2,7 @@
   "rewrites": [
     { "source": "/", "destination": "/index.html" },
     { "source": "/auth", "destination": "/index.html" },
-        { "source": "/auth/:path*", "destination": "/index.html" },
+    { "source": "/auth/:path*", "destination": "/index.html" },
 
     { "source": "/chat", "destination": "/index.html" },
     { "source": "/chat/:path*", "destination": "/index.html" },
@@ -20,13 +20,72 @@
     { "source": "/settings", "destination": "/index.html" },
     { "source": "/settings/:path*", "destination": "/index.html" },
     { "source": "/api-analytics/:path*", "destination": "/index.html" },
-        { "source": "/api-analytics", "destination": "/index.html" },
+    { "source": "/api-analytics", "destination": "/index.html" },
 
     { "source": "/overall-analytics/:path*", "destination": "/index.html" },
     { "source": "/overall-analytics", "destination": "/index.html" },
     { "source": "/onboarding/model-selection", "destination": "/index.html" },
     { "source": "/onboarding", "destination": "/index.html" },
-        { "source": "/onboarding/:path*", "destination": "/index.html" }
-
-  ]
+    { "source": "/onboarding/:path*", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/static/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/_next/static/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "src": "/service-worker.js",
+      "dest": "/_next/static/service-worker.js",
+      "headers": {
+        "Service-Worker-Allowed": "/"
+      }
+    }
+  ],
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "regions": ["all"],
+  "github": {
+    "silent": true
+  }
 }

@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Disallow authentication and private pages
+Disallow: /auth/
+Disallow: /billing/
+Disallow: /settings/
+
+# Sitemap
+Sitemap: https://app.getthryve.live/sitemap.xml
