@@ -108,12 +108,12 @@ export function AppSidebar() {
     <Sidebar className="border-r border-border bg-background text-foreground"> {/* Changed bg-white to bg-background, added text-foreground */}
       <SidebarHeader className="border-b border-border p-4 bg-background"> {/* Changed bg-white to bg-background */}
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-            <Zap className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 flex items-center justify-center">
+            <img src="/thryve.svg" alt="Thryve" className="w-8 h-8" />
           </div>
           <div>
-            <h2 className="font-semibold text-sm text-foreground">Echo Verse</h2> {/* Changed text-gray-900 to text-foreground */}
-            <p className="text-xs text-muted-foreground">AI Flow</p> {/* Changed text-gray-600 to text-muted-foreground */}
+            <h2 className="font-semibold text-sm text-foreground">Thryve</h2> {/* Changed text-gray-900 to text-foreground */}
+            <p className="text-xs text-muted-foreground"></p> {/* Changed text-gray-600 to text-muted-foreground */}
           </div>
         </div>
       </SidebarHeader>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Layout } from '@/components/Layout';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,17 +8,19 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Download, Plus, Settings, Copy, Eye, Loader2, Trash2, RefreshCw, ExternalLink, CheckCircle, BarChart3, Brain, NotebookPen, Code } from 'lucide-react';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Download, Plus, Settings, Copy, Eye, Loader2, Trash2, RefreshCw, ExternalLink, CheckCircle, BarChart3, Brain, NotebookPen, Code, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { useExportedApis, useQuickExport } from '@/hooks/useExportedApis';
-import { useModels } from '@/hooks/useModels';
+import { useModels, getModelDisplayInfo } from '@/hooks/useModels';
 import { useChatSessions } from '@/hooks/useChat';
 import { useMemory } from '@/hooks/useMemory';
 import { useNotes } from '@/hooks/useNotes';
 import { ContextSettings } from '@/components/ContextSettings';
 import { ContextToggle } from '@/components/ContextToggle';
 import { API_URL } from '@/lib/api';
+import { cn } from '@/lib/utils';
 
 interface ApiCreationResult {
   id: string;
@@ -38,6 +40,11 @@ const Exports = () => {
   const [createdApi, setCreatedApi] = useState<ApiCreationResult | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showExamplesModal, setShowExamplesModal] = useState<any>(null);
+  
+  // ✅ NEW: Model selection states
+  const [isModelsExpanded, setIsModelsExpanded] = useState(false);
+  const [modelSearchQuery, setModelSearchQuery] = useState('');
+  
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -69,6 +76,49 @@ const Exports = () => {
     include_memories: false,
     include_notes: false
   });
+
+  // ✅ Filter models based on search query
+  const filteredModels = useMemo(() => {
+    if (!modelSearchQuery.trim()) return models;
+    
+    const query = modelSearchQuery.toLowerCase();
+    return models.filter(model => {
+      const displayInfo = getModelDisplayInfo(model.id);
+      return (
+        model.name.toLowerCase().includes(query) ||
+        model.id.toLowerCase().includes(query) ||
+        displayInfo.provider.toLowerCase().includes(query) ||
+        displayInfo.modelName.toLowerCase().includes(query)
+      );
+    });
+  }, [models, modelSearchQuery]);
+
+  // ✅ Toggle model selection
+  const toggleModel = (modelId: string) => {
+    setNewApi(prev => ({
+      ...prev,
+      allowed_models: prev.allowed_models.includes(modelId)
+        ? prev.allowed_models.filter(id => id !== modelId)
+        : [...prev.allowed_models, modelId]
+    }));
+  };
+
+  // ✅ Reset modal state
+  const resetModalState = () => {
+    setNewApi({
+      name: '',
+      description: '',
+      export_type: 'context',
+      session_id: '',
+      base_model: '',
+      allowed_models: [],
+      rate_limit: 100,
+      include_memories: false,
+      include_notes: false
+    });
+    setModelSearchQuery('');
+    setIsModelsExpanded(false);
+  };
 
   const handleCreateApi = async () => {
     if (!newApi.name.trim() || !newApi.base_model) {
@@ -113,17 +163,7 @@ const Exports = () => {
           navigator.clipboard.writeText(result.api_key);
         }
 
-        setNewApi({
-          name: '',
-          description: '',
-          export_type: 'context',
-          session_id: '',
-          base_model: '',
-          allowed_models: [],
-          rate_limit: 100,
-          include_memories: false,
-          include_notes: false
-        });
+        resetModalState();
       }
     } catch (error) {
       toast({
@@ -411,128 +451,265 @@ print(result["choices"][0]["message"]["content"])`;
               {isCreating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ExternalLink className="w-4 h-4 mr-2" />}
               Quick Export
             </Button>
-            <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+            <Dialog open={isCreateModalOpen} onOpenChange={(open) => {
+              setIsCreateModalOpen(open);
+              if (!open) resetModalState();
+            }}>
               <DialogTrigger asChild>
                 <Button className="bg-primary hover:bg-primary/90">
                   <Plus className="w-4 h-4 mr-2" />
                   Create API
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
-                  <DialogTitle>Create Export API</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Name *</label>
-                    <Input
-                      placeholder="My Custom API"
-                      value={newApi.name}
-                      onChange={(e) => setNewApi(prev => ({ ...prev, name: e.target.value }))}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium">Description</label>
-                    <Textarea
-                      placeholder="API for my React app..."
-                      value={newApi.description}
-                      onChange={(e) => setNewApi(prev => ({ ...prev, description: e.target.value }))}
-                      rows={2}
-                    />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium">Export Type *</label>
-                      <select
-                        className="mt-1 w-full px-3 py-2 bg-background border border-border rounded-md text-sm"
-                        value={newApi.export_type}
-                        onChange={(e) => setNewApi(prev => ({ ...prev, export_type: e.target.value as 'context' | 'session' }))}
-                      >
-                        <option value="context">Context (includes memories & notes)</option>
-                        <option value="session">Session (specific conversation)</option>
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <label className="text-sm font-medium">Rate Limit (req/min)</label>
-                      <Input
-                        type="number"
-                        placeholder="100"
-                        value={newApi.rate_limit}
-                        onChange={(e) => setNewApi(prev => ({ ...prev, rate_limit: parseInt(e.target.value) || 100 }))}
-                      />
-                    </div>
-                  </div>
-                  
-                  {newApi.export_type === 'session' && (
-                    <div>
-                      <label className="text-sm font-medium">Session *</label>
-                      <select
-                        className="mt-1 w-full px-3 py-2 bg-background border border-border rounded-md text-sm"
-                        value={newApi.session_id}
-                        onChange={(e) => setNewApi(prev => ({ ...prev, session_id: e.target.value }))}
-                      >
-                        <option value="">Select a session...</option>
-                        {sessions.map(session => (
-                          <option key={session.id} value={session.id}>
-                            {session.name} ({session.message_count} messages)
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  
-                  <div>
-                    <label className="text-sm font-medium">Base Model *</label>
-                    <select
-                      className="mt-1 w-full px-3 py-2 bg-background border border-border rounded-md text-sm"
-                      value={newApi.base_model}
-                      onChange={(e) => setNewApi(prev => ({ ...prev, base_model: e.target.value }))}
-                    >
-                      <option value="">Select base model...</option>
-                      {models.map(model => (
-                        <option key={model.id} value={model.id}>
-                          {model.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+              {/* ✅ OPTIMIZED MODAL WITH BETTER SIZING */}
+<DialogContent className="sm:max-w-[600px] max-h-[85vh] flex flex-col">
+  <DialogHeader className="flex-shrink-0">
+    <DialogTitle>Create Export API</DialogTitle>
+  </DialogHeader>
+  
+  {/* ✅ FIXED: Use overflow-y-auto instead of ScrollArea */}
+  <div className="flex-1 overflow-y-auto px-1">
+    <div className="space-y-4 py-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="text-sm font-medium">Name *</label>
+          <Input
+            placeholder="My Custom API"
+            value={newApi.name}
+            onChange={(e) => setNewApi(prev => ({ ...prev, name: e.target.value }))}
+          />
+        </div>
+        
+        <div>
+          <label className="text-sm font-medium">Rate Limit (req/min)</label>
+          <Input
+            type="number"
+            placeholder="100"
+            value={newApi.rate_limit}
+            onChange={(e) => setNewApi(prev => ({ ...prev, rate_limit: parseInt(e.target.value) || 100 }))}
+          />
+        </div>
+      </div>
+      
+      <div>
+        <label className="text-sm font-medium">Description</label>
+        <Textarea
+          placeholder="API for my React app..."
+          value={newApi.description}
+          onChange={(e) => setNewApi(prev => ({ ...prev, description: e.target.value }))}
+          rows={2}
+        />
+      </div>
+      
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="text-sm font-medium">Export Type *</label>
+          <select
+            className="mt-1 w-full px-3 py-2 bg-background border border-border rounded-md text-sm"
+            value={newApi.export_type}
+            onChange={(e) => setNewApi(prev => ({ ...prev, export_type: e.target.value as 'context' | 'session' }))}
+          >
+            <option value="context">Context (includes memories & notes)</option>
+            <option value="session">Session (specific conversation)</option>
+          </select>
+        </div>
+        
+        <div>
+          <label className="text-sm font-medium">Base Model *</label>
+          <select
+            className="mt-1 w-full px-3 py-2 bg-background border border-border rounded-md text-sm"
+            value={newApi.base_model}
+            onChange={(e) => setNewApi(prev => ({ ...prev, base_model: e.target.value }))}
+          >
+            <option value="">Select base model...</option>
+            {models.map(model => (
+              <option key={model.id} value={model.id}>
+                {model.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      
+      {newApi.export_type === 'session' && (
+        <div>
+          <label className="text-sm font-medium">Session *</label>
+          <select
+            className="mt-1 w-full px-3 py-2 bg-background border border-border rounded-md text-sm"
+            value={newApi.session_id}
+            onChange={(e) => setNewApi(prev => ({ ...prev, session_id: e.target.value }))}
+          >
+            <option value="">Select a session...</option>
+            {sessions.map(session => (
+              <option key={session.id} value={session.id}>
+                {session.name} ({session.message_count} messages)
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
-                  <ContextSettings
-                    includeMemories={newApi.include_memories}
-                    includeNotes={newApi.include_notes}
-                    onMemoriesChange={(include) => setNewApi(prev => ({ ...prev, include_memories: include }))}
-                    onNotesChange={(include) => setNewApi(prev => ({ ...prev, include_notes: include }))}
-                    memoryCount={memories?.length || 0}
-                    notesCount={notes?.length || 0}
-                    showTokenWarning={true}
-                  />
-                  
-                  <div className="flex gap-2">
-                    <Button onClick={handleCreateApi} className="flex-1" disabled={isCreating}>
-                      {isCreating ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Creating...
-                        </>
-                      ) : (
-                        'Create API'
-                      )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsCreateModalOpen(false)}
-                      className="flex-1"
-                      disabled={isCreating}
-                    >
-                      Cancel
-                    </Button>
+      {/* ✅ ENHANCED MODEL SELECTION WITH SEARCH */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-sm font-medium">Additional Models (Optional)</label>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsModelsExpanded(!isModelsExpanded)}
+            className="h-6 px-2 text-xs"
+          >
+            {isModelsExpanded ? (
+              <>
+                <ChevronUp className="w-3 h-3 mr-1" />
+                Collapse
+              </>
+            ) : (
+              <>
+                <ChevronDown className="w-3 h-3 mr-1" />
+                Add Models ({newApi.allowed_models.length} selected)
+              </>
+            )}
+          </Button>
+        </div>
+        
+        {/* ✅ SELECTED MODELS PREVIEW (when collapsed) */}
+        {!isModelsExpanded && newApi.allowed_models.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-2">
+            {newApi.allowed_models.map(modelId => {
+              const model = models.find(m => m.id === modelId);
+              const displayInfo = getModelDisplayInfo(modelId);
+              return (
+                <Badge key={modelId} variant="secondary" className="text-xs flex items-center gap-1">
+                  <div className={cn("w-2 h-2 rounded-full", displayInfo.color)} />
+                  {model?.name || modelId}
+                  {displayInfo.isFree && <span className="text-[10px]">FREE</span>}
+                </Badge>
+              );
+            })}
+          </div>
+        )}
+        
+        {/* ✅ EXPANDABLE MODEL SELECTION WITH SEARCH */}
+        {isModelsExpanded && (
+          <Card className="border">
+            <CardContent className="p-0">
+              <Command className="rounded-lg border-0">
+                <CommandInput 
+                  placeholder="Search models by name, provider, or ID..." 
+                  className="border-0"
+                  value={modelSearchQuery}
+                  onValueChange={setModelSearchQuery}
+                />
+                <CommandEmpty>
+                  <div className="text-center py-4">
+                    <Search className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">No models found</p>
+                    <p className="text-xs text-muted-foreground mt-1">Try adjusting your search terms</p>
                   </div>
-                </div>
-              </DialogContent>
-            </Dialog>
+                </CommandEmpty>
+                <CommandList className="max-h-[200px] overflow-y-auto">
+                  <CommandGroup>
+                    {filteredModels.map((model) => {
+                      const displayInfo = getModelDisplayInfo(model.id);
+                      const isSelected = newApi.allowed_models.includes(model.id);
+                      
+                      return (
+                        <CommandItem
+                          key={model.id}
+                          onSelect={() => toggleModel(model.id)}
+                          className={cn(
+                            "cursor-pointer p-3",
+                            isSelected && "bg-primary/10"
+                          )}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className={cn("w-3 h-3 rounded-full", displayInfo.color)} />
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium text-sm truncate flex items-center gap-2">
+                                  {model.name}
+                                  {displayInfo.isFree && (
+                                    <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">FREE</Badge>
+                                  )}
+                                </div>
+                                <div className="text-xs text-muted-foreground truncate">
+                                  {model.id}
+                                </div>
+                                {model.pricing && (
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    ${model.pricing.prompt}/${model.pricing.completion} per 1K tokens
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {}} // Handled by CommandItem
+                                className="pointer-events-none"
+                              />
+                              {isSelected && (
+                                <CheckCircle className="w-4 h-4 text-primary" />
+                              )}
+                            </div>
+                          </div>
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* ✅ SEARCH RESULTS INFO */}
+        {isModelsExpanded && modelSearchQuery && (
+          <div className="text-xs text-muted-foreground mt-2">
+            {filteredModels.length} model{filteredModels.length !== 1 ? 's' : ''} found
+            {modelSearchQuery && ` for "${modelSearchQuery}"`}
+          </div>
+        )}
+      </div>
+
+      <ContextSettings
+        includeMemories={newApi.include_memories}
+        includeNotes={newApi.include_notes}
+        onMemoriesChange={(include) => setNewApi(prev => ({ ...prev, include_memories: include }))}
+        onNotesChange={(include) => setNewApi(prev => ({ ...prev, include_notes: include }))}
+        memoryCount={memories?.length || 0}
+        notesCount={notes?.length || 0}
+        showTokenWarning={true}
+      />
+    </div>
+  </div>
+  
+  {/* ✅ FIXED: Footer with proper spacing */}
+  <div className="flex gap-2 pt-4 border-t border-border flex-shrink-0">
+    <Button onClick={handleCreateApi} className="flex-1" disabled={isCreating}>
+      {isCreating ? (
+        <>
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          Creating...
+        </>
+      ) : (
+        'Create API'
+      )}
+    </Button>
+    <Button
+      variant="outline"
+      onClick={() => setIsCreateModalOpen(false)}
+      className="flex-1"
+      disabled={isCreating}
+    >
+      Cancel
+    </Button>
+  </div>
+</DialogContent>            
+</Dialog>
           </div>
         </div>
         
@@ -806,7 +983,7 @@ print(result["choices"][0]["message"]["content"])`;
 
         {/* Success Modal */}
         <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
-          <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-green-600" />
@@ -826,7 +1003,7 @@ print(result["choices"][0]["message"]["content"])`;
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div>
                     <label className="text-sm font-medium">API Endpoint</label>
                     <div className="flex gap-2 mt-1">
@@ -911,47 +1088,7 @@ print(result["choices"][0]["message"]["content"])`;
                     value={getUsageExample()}
                     readOnly
                     className="font-mono text-xs"
-                    rows={10}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm font-medium">JavaScript Example</label>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => copyToClipboard(getJavaScriptExample(), 'JavaScript example')}
-                    >
-                      <Copy className="w-3 h-3 mr-1" />
-                      Copy
-                    </Button>
-                  </div>
-                  <Textarea
-                    value={getJavaScriptExample()}
-                    readOnly
-                    className="font-mono text-xs"
                     rows={8}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm font-medium">Python Example</label>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => copyToClipboard(getPythonExample(), 'Python example')}
-                    >
-                      <Copy className="w-3 h-3 mr-1" />
-                      Copy
-                    </Button>
-                  </div>
-                  <Textarea
-                    value={getPythonExample()}
-                    readOnly
-                    className="font-mono text-xs"
-                    rows={10}
                   />
                 </div>
 
