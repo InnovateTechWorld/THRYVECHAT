@@ -1,19 +1,21 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Download, Copy, CheckCircle, Loader2, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Download, Copy, CheckCircle, Loader2, ExternalLink, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useQuickExport } from '@/hooks/useExportedApis';
-import { useModels } from '@/hooks/useModels';
+import { useModels, getModelDisplayInfo } from '@/hooks/useModels';
 import { useMemory } from '@/hooks/useMemory';
 import { useNotes } from '@/hooks/useNotes';
 import { ContextSettings } from '@/components/ContextSettings';
 import { API_URL } from '@/lib/api';
+import { cn } from '@/lib/utils';
 
 interface ExportAsApiButtonProps {
   sessionId?: string;
@@ -35,9 +37,9 @@ export const ExportAsApiButton = ({ sessionId, messages, type = 'session' }: Exp
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [isExporting, setIsExporting] = useState(false);
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
-  const [isModelsExpanded, setIsModelsExpanded] = useState(true);
-  const [apiDescription, setApiDescription] = useState(''); // ADD THIS
-
+  const [isModelsExpanded, setIsModelsExpanded] = useState(false); // ✅ Start collapsed
+  const [apiDescription, setApiDescription] = useState('');
+  const [searchQuery, setSearchQuery] = useState(''); // ✅ Add search state
 
   // NEW: Context settings state
   const [includeMemories, setIncludeMemories] = useState(false);
@@ -48,6 +50,22 @@ export const ExportAsApiButton = ({ sessionId, messages, type = 'session' }: Exp
   const { models } = useModels();
   const { memories } = useMemory();
   const { notes } = useNotes();
+
+  // ✅ Filter models based on search query
+  const filteredModels = useMemo(() => {
+    if (!searchQuery.trim()) return models;
+    
+    const query = searchQuery.toLowerCase();
+    return models.filter(model => {
+      const displayInfo = getModelDisplayInfo(model.id);
+      return (
+        model.name.toLowerCase().includes(query) ||
+        model.id.toLowerCase().includes(query) ||
+        displayInfo.provider.toLowerCase().includes(query) ||
+        displayInfo.modelName.toLowerCase().includes(query)
+      );
+    });
+  }, [models, searchQuery]);
 
   const handleExport = async () => {
     if (!apiName.trim()) {
@@ -104,35 +122,21 @@ export const ExportAsApiButton = ({ sessionId, messages, type = 'session' }: Exp
       });
       
       if (type === 'session' && sessionId && sessionId !== 'default') {
-        // For session export, use createSessionAPI with proper error handling
-        console.log('Creating session API with:', {
-          sessionId,
-          modelsToExpose: selectedModels,
-          includeMemories,
-          includeNotes,
-          sessionIdValid: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)
-        });
         result = await createSessionAPI(
           sessionId,
           selectedModels,
           includeMemories,
           includeNotes,
-          apiName.trim(), // Pass the name
-          apiDescription.trim() || undefined // Pass description if provided
+          apiName.trim(),
+          apiDescription.trim() || undefined
         );
       } else {
-        // For context export
-        console.log('Creating context API with:', {
-          modelsToExpose: selectedModels,
-          includeMemories,
-          includeNotes
-        });
         result = await createContextAPI(
           selectedModels,
           includeMemories,
           includeNotes,
-          apiName.trim(), // Pass the name
-          apiDescription.trim() || undefined // Pass description if provided
+          apiName.trim(),
+          apiDescription.trim() || undefined
         );
       }
 
@@ -140,7 +144,6 @@ export const ExportAsApiButton = ({ sessionId, messages, type = 'session' }: Exp
         console.log('Export successful:', result);
         setExportResult(result);
         
-        // Copy API key to clipboard
         navigator.clipboard.writeText(result.apiKey);
         
         toast({
@@ -155,7 +158,6 @@ export const ExportAsApiButton = ({ sessionId, messages, type = 'session' }: Exp
       
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       
-      // More specific error handling
       let userMessage = errorMessage;
       if (errorMessage.includes('Session ID is required')) {
         userMessage = "Session ID is missing. Please select a valid conversation.";
@@ -192,11 +194,12 @@ export const ExportAsApiButton = ({ sessionId, messages, type = 'session' }: Exp
   const resetModal = () => {
     setExportResult(null);
     setApiName('');
-    setApiDescription(''); // ADD THIS
+    setApiDescription('');
     setSelectedModels([]);
+    setSearchQuery(''); // ✅ Reset search
     setIncludeMemories(false);
     setIncludeNotes(false);
-    setIsModelsExpanded(true); // Reset to expanded
+    setIsModelsExpanded(false); // ✅ Reset to collapsed
   };
 
   const toggleModel = (modelId: string) => {
@@ -208,9 +211,9 @@ export const ExportAsApiButton = ({ sessionId, messages, type = 'session' }: Exp
   };
 
   const getUsageExample = () => {
-  if (!exportResult) return '';
-  
-  return `curl -X POST "${exportResult.apiUrl}" \\
+    if (!exportResult) return '';
+    
+    return `curl -X POST "${exportResult.apiUrl}" \\
   -H "Authorization: Bearer ${exportResult.apiKey}" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -225,7 +228,7 @@ export const ExportAsApiButton = ({ sessionId, messages, type = 'session' }: Exp
     "temperature": 0.7,
     "max_tokens": 1000
   }'`;
-};
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
@@ -242,7 +245,7 @@ export const ExportAsApiButton = ({ sessionId, messages, type = 'session' }: Exp
           Export as API
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             Export {type === 'session' ? 'Conversation' : 'Profile'} as API
@@ -260,7 +263,6 @@ export const ExportAsApiButton = ({ sessionId, messages, type = 'session' }: Exp
               />
             </div>
             
-            {/* ADD THIS: Description field */}
             <div>
               <label className="text-sm font-medium">Description (Optional)</label>
               <Input
@@ -270,6 +272,7 @@ export const ExportAsApiButton = ({ sessionId, messages, type = 'session' }: Exp
               />
             </div>
             
+            {/* ✅ ENHANCED MODEL SELECTION WITH SEARCH */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-sm font-medium">Select Models *</label>
@@ -294,51 +297,108 @@ export const ExportAsApiButton = ({ sessionId, messages, type = 'session' }: Exp
                 </Button>
               </div>
               
-              {isModelsExpanded && (
-                <div className="grid grid-cols-2 gap-2">
-                  {models.map((model) => (
-                    <div
-                      key={model.id}
-                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                        selectedModels.includes(model.id)
-                          ? 'border-primary bg-primary/10'
-                          : 'border-border hover:border-primary/50'
-                      }`}
-                      onClick={() => toggleModel(model.id)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">{model.name}</span>
-                        <input
-                          type="checkbox"
-                          checked={selectedModels.includes(model.id)}
-                          onChange={() => {}} // Handled by div click
-                          className="pointer-events-none"
-                        />
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {model.id}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
+              {/* ✅ SELECTED MODELS PREVIEW (when collapsed) */}
               {!isModelsExpanded && selectedModels.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
+                <div className="flex flex-wrap gap-1 mb-2">
                   {selectedModels.map(modelId => {
                     const model = models.find(m => m.id === modelId);
+                    const displayInfo = getModelDisplayInfo(modelId);
                     return (
-                      <Badge key={modelId} variant="secondary" className="text-xs">
+                      <Badge key={modelId} variant="secondary" className="text-xs flex items-center gap-1">
+                        <div className={cn("w-2 h-2 rounded-full", displayInfo.color)} />
                         {model?.name || modelId}
+                        {displayInfo.isFree && <span className="text-[10px]">FREE</span>}
                       </Badge>
                     );
                   })}
                 </div>
               )}
+              
+              {/* ✅ EXPANDABLE MODEL SELECTION WITH SEARCH */}
+              {isModelsExpanded && (
+                <Card className="border">
+                  <CardContent className="p-0">
+                    <Command className="rounded-lg border-0">
+                      <CommandInput 
+                        placeholder="Search models by name, provider, or ID..." 
+                        className="border-0"
+                        value={searchQuery}
+                        onValueChange={setSearchQuery}
+                      />
+                      <CommandEmpty>
+                        <div className="text-center py-4">
+                          <Search className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-sm text-muted-foreground">No models found</p>
+                          <p className="text-xs text-muted-foreground mt-1">Try adjusting your search terms</p>
+                        </div>
+                      </CommandEmpty>
+                      <CommandList className="max-h-[300px]">
+                        <CommandGroup>
+                          {filteredModels.map((model) => {
+                            const displayInfo = getModelDisplayInfo(model.id);
+                            const isSelected = selectedModels.includes(model.id);
+                            
+                            return (
+                              <CommandItem
+                                key={model.id}
+                                onSelect={() => toggleModel(model.id)}
+                                className={cn(
+                                  "cursor-pointer p-3",
+                                  isSelected && "bg-primary/10"
+                                )}
+                              >
+                                <div className="flex items-center justify-between w-full">
+                                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                                    <div className={cn("w-3 h-3 rounded-full", displayInfo.color)} />
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-medium text-sm truncate flex items-center gap-2">
+                                        {model.name}
+                                        {displayInfo.isFree && (
+                                          <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">FREE</Badge>
+                                        )}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground truncate">
+                                        {model.id}
+                                      </div>
+                                      {model.pricing && (
+                                        <div className="text-xs text-muted-foreground mt-1">
+                                          ${model.pricing.prompt}/${model.pricing.completion} per 1K tokens
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={() => {}} // Handled by CommandItem
+                                      className="pointer-events-none"
+                                    />
+                                    {isSelected && (
+                                      <CheckCircle className="w-4 h-4 text-primary" />
+                                    )}
+                                  </div>
+                                </div>
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* ✅ SEARCH RESULTS INFO */}
+              {isModelsExpanded && searchQuery && (
+                <div className="text-xs text-muted-foreground mt-2">
+                  {filteredModels.length} model{filteredModels.length !== 1 ? 's' : ''} found
+                  {searchQuery && ` for "${searchQuery}"`}
+                </div>
+              )}
             </div>
 
-            
-            {/* NEW: Context Settings */}
+            {/* Context Settings */}
             <ContextSettings
               includeMemories={includeMemories}
               includeNotes={includeNotes}
@@ -408,6 +468,7 @@ export const ExportAsApiButton = ({ sessionId, messages, type = 'session' }: Exp
             </div>
           </div>
         ) : (
+          // ✅ SUCCESS VIEW (unchanged)
           <div className="space-y-6">
             <div className="flex items-center gap-2 text-green-600">
               <CheckCircle className="w-5 h-5" />
